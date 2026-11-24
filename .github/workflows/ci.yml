@@ -1,0 +1,74 @@
+name: CI
+
+# Sur toute pull request, vers `develop` comme vers `master` : GitHub y teste la
+# fusion d'essai avec la branche visée, donc ce qui arrivera vraiment.
+# **Bloquante** : le job « Typage et tests » est le contrôle requis par la
+# protection de `develop` (voir AGENTS.md). Renommer le job casse ce réglage.
+# `workflow_dispatch` vérifie une branche à la main.
+#
+# Windows seulement : ARIA n'est construite que là (DXGI, DirectML, CUDA,
+# `.cargo/config.toml` en x86-64-v3). Ne pas poser `RUSTFLAGS` ici : il
+# écraserait ce plancher et invaliderait le cache.
+#
+# Ni `cargo fmt --check` ni clippy en `-D warnings` : le dépôt n'est pas encore
+# propre pour l'un ni l'autre, et une CI rouge dès le premier jour ne dit rien.
+# À ajouter une fois le code mis au carré.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Typage et tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: debug
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ui/package-lock.json
+
+      - run: npm ci
+      - run: npm --prefix ui ci
+
+      # `vue-tsc` puis Vite : le seul contrôle côté front. Avant cargo, pour
+      # que `ui/dist` existe quand Tauri le cherche.
+      - name: Typage et bundle du front
+        run: npm --prefix ui run build
+
+      # Les tests `#[ignore]` restent ignorés : dix consomment le quota Claude
+      # Code, six chargent des poids de modèle (voir AGENTS.md).
+      #
+      # `shell: bash` n'est pas un goût : sur Windows le défaut est PowerShell, qui
+      # continue après une commande en échec et ne rend que le code de la
+      # **dernière**. Un test d'`aria-core` cassé passerait au vert.
+      #
+      # `aria` avant `aria-voice` : c'est `app/build.rs` qui dépose ONNX Runtime
+      # dans `app/resources/ort/`, et deux tests du mot de réveil le chargent.
+      - name: Tests Rust
+        shell: bash
+        run: |
+          cargo test --locked -p aria-core
+          cargo test --locked -p aria --lib
+          cargo test --locked -p aria-voice
+          cargo test --locked -p aria-memory
+
+      - name: Le reste du workspace compile
+        run: cargo check --locked --workspace

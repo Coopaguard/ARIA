@@ -1,0 +1,107 @@
+[package]
+name = "aria-core"
+description = "ARIA core: everything that runs without a window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# Dyn-compatible async methods. The provider trait has to be a trait object —
+# the settings screen asks the ACTIVE provider for its profile mapping, and
+# epic 03 requires a second one to plug in without touching that code.
+async-trait = "0.1"
+axum.workspace = true
+# The MCP server ARIA exposes to its sessions — epic 02.
+#
+# The official Rust SDK, and the one dependency decision of this epic that was
+# easy: 3.7.0, updated three days before we took it, 40M downloads. The opposite
+# of the two abandoned Claude-Code wrappers epic 01 made us write around.
+rmcp = { version = "3.7", features = [
+    "server",
+    "macros",
+    "transport-streamable-http-server",
+    "transport-streamable-http-server-session",
+] }
+schemars = "1"
+# The wall clock, for the stamp every message to the main agent carries.
+#
+# Not a new build: `chrono` is already compiled in this crate's tree, pulled
+# by `rmcp` and `schemars` (`schemars/chrono04`). What is new is the `clock`
+# feature, and with it `iana-time-zone` â without it there is no
+# `Local::now()`, and the only time a `DateTime` can give is UTC, which is the
+# wrong hour to say out loud to someone in France. Default features are off
+# because `oldtime` pulls `time 0.1`, which carries a soundness advisory.
+chrono = { version = "0.4", default-features = false, features = [
+    "clock",
+    "serde",
+    "std",
+] }
+# The raw HTTP parts, to read the endpoint token the relay routes on.
+http = "1"
+# The client half of HTTP, for one peer: the local model's `llama-server`
+# (epic 10). `hyper` and `hyper-util` are already compiled under axum, so this
+# adds two features rather than a client stack; `reqwest` would have added a
+# TLS tree to talk to 127.0.0.1.
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+# The audio of a turn travels to the local model as base64 WAV. Already in the
+# tree several times over.
+base64 = "0.22"
+
+# SQLite, for the memory index and later the conversation history — one module
+# serves both, and decision 100 says why: they share the plumbing, never a file.
+#
+# `bundled` compiles the C amalgamation with `cc`, no CMake. Decision 99
+# verified what it actually gives us, because none of it is a given: FTS5 at all
+# (a SQLite compile flag), `unicode61 remove_diacritics 2`, and `bm25()`
+# weighted per column. SQLite 3.50.2, and `bundled` alone suffices — there is no
+# `fts5` feature to add.
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+# YAML, for the OKF front matter of a memory page (decision 88).
+#
+# **Correction to decision 88**, which adopted OKF partly because "it is YAML,
+# so it costs nothing". In Rust that is false: `serde_yaml` is unmaintained and
+# the two live forks last published in 2024 — `serde_norway` 0.9.42 in December,
+# `serde_yaml_ng` 0.10.0 in May. Dormant, but both at eleven to fifteen million
+# recent downloads, so widely leaned on. We take the more recent of the two.
+#
+# It is here for **reading**, not writing: the front matter we emit is written
+# by hand in `store::memory::page`, so key order stays stable and a diff stays
+# readable. The dependency earns its place on the page the *user* hand-edited —
+# decision 88 exists for that — where any valid YAML may turn up, and losing it
+# in silence would be worse than the dependency.
+serde_norway = "0.9"
+
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# A WebSocket client, for one integration test and nothing else.
+#
+# Worth the five crates: the replay handshake is the piece most likely to be
+# subtly wrong — subscribe before reading history, then drop what the replay
+# already covered — and a unit test of the broker cannot see the wire.
+tokio-tungstenite = "0.30"
+# `StreamExt`, to read frames off the client socket. Already in the tree
+# under tokio-tungstenite; declared because the test names it.
+futures-util = "0.3"
+# The client half of the MCP SDK, for one test: the main agent's endpoint is
+# served over an in-memory pipe and spoken to by a real client. The feature
+# costs one crate — `client = ["dep:tokio-stream"]` — and buys the handshake,
+# which is the piece a router assertion cannot see.
+rmcp = { version = "3.7", features = ["client"] }
+# To see the CLI stream while diagnosing a relay that does not fire.
+tracing-subscriber.workspace = true
+# A throwaway directory per test. The memory writes real files, and the
+# confinement rules of decision 90 — `..` refused, symlink refused — are only
+# testable against a real filesystem. Decision 94 made the root injectable so
+# these tests need no home directory.
+tempfile = "3"

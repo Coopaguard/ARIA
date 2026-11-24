@@ -1,0 +1,214 @@
+/* ===========================================================================
+   FLOATING OVERVIEW — the shapes.
+
+   Imported from the interface mock, which is now frozen
+   scaffolding. This is the product's copy: change the shapes here.
+
+   The window itself is declared in `app/tauri.conf.json` —
+   `decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true` —
+   and `app/src/shell/` shows and hides it. Everything below assumes the window
+   is genuinely transparent, which is what makes the rule under here possible.
+
+   The design rule that drives everything else: THERE IS NO PANEL. No
+   rectangle carries the whole thing. Three shapes sit side by side — two
+   triangular wedges, the orb, a pill — and between them the window is
+   transparent. That is what makes the overview float above the active
+   windows instead of dropping a thumbnail on top of them.
+
+   Corollary: NO `backdrop-filter` on a rectangular shape. A backdrop blur is
+   clipped exactly to the element's box, so a square element draws a visible
+   blurred square, even with no border and no background. Only the pill is
+   blurred, and it is rounded: its blur follows its `border-radius`.
+   =========================================================================== */
+
+.ov {
+  position: relative;
+  /* Just wide enough for the orb, so the wedges nest in the empty corners
+     the circle leaves instead of floating far from it. */
+  width: 206px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* --- the two triangular wedges -----------------------------------------
+   Right angle facing outwards, hypotenuse facing the orb. Rounded corners
+   computed in the path itself, so we can draw a thin border on the real edge
+   instead of faking the rounding with a thick stroke. */
+.ov-tri {
+  position: absolute;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  z-index: 3;
+  transition: transform .16s, filter .16s;
+}
+.ov-tri-l { left: 0; }
+.ov-tri-r { right: 0; }
+.ov-tri-r svg { transform: scaleX(-1); }
+
+.ov-tri svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.ov-tri path {
+  fill: rgba(183, 164, 255, .14);
+  stroke: rgba(183, 164, 255, .6);
+  stroke-width: 1.5;
+  transition: fill .16s, stroke .16s;
+}
+.ov-tri .ic {
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  font-family: var(--ov-mono, "Share Tech Mono", ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--chrome);
+  pointer-events: none;
+  transition: color .16s, text-shadow .16s;
+}
+.ov-tri-r .ic { left: auto; right: 10px; }
+
+.ov-tri:hover { transform: scale(1.06); }
+.ov-tri:hover path { fill: rgba(183, 164, 255, .2); stroke: rgba(183, 164, 255, .9); }
+.ov-tri:hover .ic  { color: var(--focus); text-shadow: 0 0 10px rgba(183, 164, 255, .9); }
+.ov-tri:focus-visible path { stroke: var(--focus); stroke-width: 2; }
+.ov-tri:focus-visible { outline: none; }
+
+/* the right wedge cuts things off: it turns red, the colour of danger */
+.ov-tri-sleep:hover path { fill: rgba(255, 84, 112, .18); stroke: rgba(255, 84, 112, .85); }
+.ov-tri-sleep:hover .ic  { color: #ff93a6; text-shadow: 0 0 10px rgba(255, 84, 112, .9); }
+
+/* --- the orb ------------------------------------------------------------
+   No background, no frame: the canvas is transparent and only the orb is
+   painted. The orb IS the window. */
+.ov-orb {
+  display: block;
+  width: 190px;
+  height: 190px;
+  cursor: pointer;
+  z-index: 2;
+}
+.ov-orb:focus-visible { outline: 2px solid var(--focus); outline-offset: 6px; border-radius: 50%; }
+
+/* No permanent label under the orb. "à l'écoute" and "clique l'orbe"
+   repeated what the orb already says — it lights up when the channel is
+   open — and added a line of text floating with nothing to sit on. Messages
+   worth reading go through the pill, which clears itself when it has nothing
+   to say. */
+/* Sizes and colours follow the main window's rework (2026-11-17, finished
+   here on 2026-11-20): nothing under 11 px, every button at least 28 px high,
+   one meaning per colour — violet the interface, amber what ARIA says, red
+   danger. */
+.ov-status {
+  font-family: var(--ov-mono, "Share Tech Mono", ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+.ov-status:not(:empty) + .ov-say:not(:empty) { margin-top: 7px; }
+.ov-status b { color: var(--chrome); font-weight: 400; }
+
+/* --- the pill: the exchange and notification area -----------------------
+   The only blurred shape, and it is rounded — its blur follows the radius.
+   It disappears when it has nothing to say: an empty pill floating under the
+   orb would be an opaque block for no reason.
+
+   Framed by the orb's aurora, like the input bar under the orb in the main
+   window. Two backgrounds rather than `.ring`'s masked `::before`: the pill
+   does not scroll and has no positioned child to protect, and the padding-box
+   / border-box pair follows `border-radius` on its own. */
+.ov-pill {
+  width: 100%;
+  border-radius: 19px;
+  border: var(--ring-width) solid transparent;
+  background:
+    linear-gradient(rgba(8, 14, 24, .86), rgba(8, 14, 24, .86)) padding-box,
+    var(--ring-soft) border-box;
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  box-shadow:
+    -8px -6px 24px -12px rgba(63, 208, 255, .45),
+    8px 8px 26px -12px rgba(123, 108, 255, .45),
+    0 6px 28px rgba(0, 0, 0, .62);
+  padding: 10px 14px;
+  z-index: 2;
+  animation: ovRise .26s cubic-bezier(.2, .9, .3, 1);
+}
+.ov-pill[hidden] { display: none; }
+@keyframes ovRise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+/* What ARIA is saying: amber, and the reading face, as in the main window. */
+.ov-say {
+  text-align: center;
+  font-family: var(--font-read);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--amber);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ov-say .partial { color: var(--dim); font-style: italic; }
+
+/* --- the permission request, inside the pill ----------------------------
+   In its own slot, and emphatically not inside `.ov-say`: that one is
+   clamped to three lines, and the clamp was taking the buttons with it.
+   Nothing here is clamped — a request is read in full or not at all. */
+.ov-perm-slot:empty { display: none; }
+.ov-status:not(:empty) + .ov-say:empty + .ov-perm-slot:not(:empty),
+.ov-say:not(:empty) + .ov-perm-slot:not(:empty) { margin-top: 8px; }
+.ov-perm { text-align: left; }
+.ov-perm .t {
+  font-family: var(--ov-mono, "Share Tech Mono", ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--err);
+  margin-bottom: 4px;
+}
+.ov-perm .a {
+  font-family: var(--font-read);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ov-perm .r { display: flex; gap: 7px; margin-top: 9px; }
+.ov-perm .r button {
+  flex: 1;
+  min-height: 28px;
+  cursor: pointer;
+  border-radius: 12px;
+  border: 1px solid rgba(183, 164, 255, .35);
+  background: rgba(255, 255, 255, .04);
+  color: var(--text);
+  font-family: var(--ov-mono, "Share Tech Mono", ui-monospace, monospace);
+  font-size: 12px;
+  padding: 6px 4px;
+  transition: .15s;
+}
+.ov-perm .r .yes:hover { color: var(--ok); border-color: var(--ok); box-shadow: 0 0 12px rgba(67, 255, 164, .25); }
+.ov-perm .r .no:hover  { color: var(--err); border-color: var(--err); box-shadow: 0 0 12px rgba(255, 84, 112, .25); }
+.ov-perm .screenonly { margin-top: 7px; font-size: 12px; color: var(--err); font-style: italic; }
+
+/* the pill turns red while it carries a request */
+.ov-pill.alert {
+  background:
+    linear-gradient(rgba(8, 14, 24, .86), rgba(8, 14, 24, .86)) padding-box,
+    linear-gradient(rgba(255, 84, 112, .6), rgba(255, 84, 112, .6)) border-box;
+  box-shadow: 0 6px 26px rgba(0, 0, 0, .55), 0 0 22px rgba(255, 84, 112, .2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-pill, .ov-tri { animation: none; transition: none; }
+}

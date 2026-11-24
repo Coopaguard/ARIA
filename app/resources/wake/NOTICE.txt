@@ -1,0 +1,14 @@
+Wake-word detector resources.
+
+wake.onnx, oww/oww.onnx
+  Trained for ARIA. The voices used are listed in voix.tsv; kyutai-fr-cosette
+  is not licensed for commercial use.
+
+oww/melspectrogram.onnx, oww/embedding_model.onnx
+  From openWakeWord v0.5.1, https://github.com/dscripka/openWakeWord
+  The embedding model derives from Google's speech_embedding
+  (https://tfhub.dev/google/speech_embedding/1), Apache License 2.0.
+  openWakeWord states Apache License 2.0 for its code, and CC BY-NC-SA 4.0
+  (https://creativecommons.org/licenses/by-nc-sa/4.0/) for the pre-trained
+  models it includes. Treat these two files as non-commercial.
+  The files are not modified.

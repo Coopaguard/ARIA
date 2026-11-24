@@ -1,0 +1,129 @@
+[package]
+name = "aria-voice"
+description = "ARIA voice: microphone capture, segmentation and speech-to-text"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Its own crate from day one, and AGENTS.md says why: this is the module that
+# drags its own heavy dependency tree — an ONNX runtime and its prebuilt backends.
+# `aria-core` must keep building in 37 s without any of it.
+#
+# The engine comes from Handy (MIT), not as a fork but as its published crates:
+# nothing is copied, upstream fixes arrive with `cargo update`.
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+
+# WAV in and out. Not for the product — for the bench: a turn detector is chosen
+# by replaying the same utterances, not by asking someone to speak twenty times.
+hound = "3.5"
+
+# Real-input FFT, for the log-mel features Smart Turn v3 expects. Already in the
+# tree under `parakeet-rs`; declared here because we call it ourselves.
+realfft = "3"
+
+# Microphone capture. `RecorderConfig::speech()` is the preset that matters:
+# the ASR wants 16 kHz mono.
+handy-recorder = "0.1"
+
+# Parakeet on ONNX Runtime: the TDT decoder, the cache-aware streaming variants
+# and end-of-utterance detection, which is the hard part we were not going to
+# write ourselves.
+#
+# ONNX rather than ggml, decided on 2026-10-24 on two measured grounds. Speed is
+# not one of them: on x86 CPU, ggml runs Parakeet at 45× real time against 42×
+# for sherpa-onnx and 28× for onnx-asr — some 40 ms on a three-second utterance,
+# nothing at the scale of a 1.2 s voice budget. What decided it:
+#
+#  - ggml wants cmake and a full C++ build; `ort` ships prebuilt binaries;
+#  - `ort` is already the runtime T2 needs for Smart Turn v2, so the stack keeps
+#    one inference engine instead of two.
+#
+# **Loaded dynamically since 2026-11-22** (decision 131): ONNX Runtime is no
+# longer linked into the binary but loaded from a DLL chosen at start-up, one
+# per stack — DirectML, shipped beside the executable; CUDA or OpenVINO (Intel's
+# oneAPI), downloaded when the card asks for it. The prebuilt static builds of
+# `ort` cannot do that: one binary carries one stack, and OpenVINO exists only
+# in a build of its own. See `runtime.rs`.
+#
+# `default-features = false` because `parakeet-rs`'s default turns on `ort`'s,
+# which downloads a static build and demands API 31 — and Microsoft's DirectML
+# and Intel's OpenVINO stop at 1.24. API 24 is what `fastembed` asks too.
+parakeet-rs = { version = "0.4", default-features = false, features = [
+    "cpu", "api-24", "load-dynamic", "directml", "cuda", "openvino",
+] }
+# The same `ort`, for `preload-dylibs` (CUDA's libraries from a folder of ours)
+# and `load-dynamic` (`init_from`).
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "std", "api-24", "load-dynamic", "preload-dylibs",
+] }
+# The runtimes and CUDA's libraries come as NuGet packages and wheels — both
+# zips (`runtime.rs`): fetched with the HTTP client already in the tree, checked
+# against pinned sha256, and only their DLLs kept.
+ureq = "3"
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# Phonon, le moteur qui tourne dans notre processus. Publié sur crates.io en
+# MIT OR Apache-2.0, bâti sur `xn`. `default-features = false` : `cuda` veut
+# nvcc, `metal` et `vulkan` leurs propres chaînes, et le chemin qui compte est
+# le CPU. Mesuré : il compile sans CMake, contrairement au binaire de Kyutai.
+ptts = { version = "0.5", default-features = false, features = ["hf", "audio"] }
+
+# Les poids viennent du Hub, et ARIA les y cherche elle-même : la 1.0 ne lit
+# aucune variable d'environnement, donc le cache et le jeton se posent à la
+# main. Voir l'en-tête de `tts/phonon.rs`.
+hf-hub = { version = "1.0", features = ["blocking"] }
+
+# Le modèle de Kyutai, **lié** et non lancé en sous-processus — décision 56.
+#
+# Notre fork (`Coopaguard/pocket-tts`) y a ajouté une cible bibliothèque et
+# rendu optionnel ce qui empêchait de lier. `default-features = false` coupe la
+# feature `cli` : plus d'axum, de clap, ni du tokeniseur SentencePiece qui
+# exigeait CMake. `tokio` reste dans l'arbre, mais par `hf-hub` juste au-dessus,
+# pas par ce crate — vérifié avec `cargo tree -i tokio`. Il dépend du même
+# `ptts 0.5` que la ligne ci-dessus, donc un seul moteur d'inférence et un seul
+# `xn` dans le binaire.
+#
+# **Par révision git, épinglée** (depuis le 2026-11-23). C'était un chemin vers
+# `../fork-pocket-tts`, donc le dépôt ne compilait que sur une machine qui avait
+# ce dossier à côté — la première CI l'a dit. Le fork est public ; `rev` et non
+# `branch`, pour qu'un push sur le fork ne change pas ce qu'ARIA construit. Le
+# crate ne peut pas être publié sous ce nom : il est pris sur crates.io par une
+# réimplémentation Candle sans rapport.
+#
+# Pour travailler sur le fork, sans toucher à cette ligne :
+# `cargo --config 'patch."https://github.com/Coopaguard/pocket-tts".kyutai-pocket-tts.path="../fork-pocket-tts/rust"' …`
+#
+# La liste à suivre pour passer au paquet officiel est dans `AGENTS.md` ; les
+# faits relevés sur la dépendance, dans `docs/todos/pocket-tts-official.md`.
+pocket-tts = { package = "kyutai-pocket-tts", git = "https://github.com/Coopaguard/pocket-tts", rev = "1a8df4f9a793b8ef14dc45fcb03627219d5b8784", default-features = false }
+
+# The calibration values are part of the settings file, and decision 24 makes it
+# TOML that a person can read and edit.
+serde.workspace = true
+# Le manifeste des voix de Phonon est du JSONL, une ligne par voix.
+serde_json.workspace = true
+thiserror.workspace = true
+
+# Playback, for the echo probe only: the gate needs an exact reference of what
+# went to the speakers. `handy-cpal` is "cpal 0.18.2 with a PulseAudio fix" and
+# is already in the tree under `handy-recorder`, so this costs no new build.
+cpal = { package = "handy-cpal", version = "0.18" }
+
+# La voix de Windows (WinRT) a été retirée le 2026-11-19 : Phonon seul parle.
+
+[dev-dependencies]
+# Pour les tests de `models` : un dossier jetable, jamais la vraie racine.
+tempfile = "3"
+# `examples/clone_voice.rs` : les tenseurs de Mimi et des voix. Le `xn` déjà
+# tiré par `ptts`, pas un second.
+xn = "0.2"
+
+# The graphics card's maker (`gpu.rs`), asked of DXGI — the list DirectX itself
+# chooses from. Already in the tree under Tauri; one feature more.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Graphics_Dxgi"] }

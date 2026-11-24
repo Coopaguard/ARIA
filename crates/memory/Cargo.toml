@@ -1,0 +1,44 @@
+[package]
+name = "aria-memory"
+description = "ARIA memory: the vectoriser, and nothing else"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# The third crate, and the rule of AGENTS.md applying a third time: a module
+# becomes a crate when it drags its own heavy dependency tree. Here it is an
+# ONNX runtime and a tokeniser, and `aria-core` must keep building without them
+# — 43 s, measured, with no model anywhere in it.
+#
+# It is deliberately **small**. Decision 93 found that everything else the deep
+# search needs — FTS5, the edges, the fingerprints, the scan, the fusion — is
+# arithmetic and SQLite, so it lives in the core. What is left here is
+# `Embedder`: four methods, one of which does the work.
+
+[dependencies]
+aria-core.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+# The embedding models, on the ONNX runtime the tree already carries.
+#
+# Verified on 2026-11-11 before adopting it (decision 96): fastembed 7.7.0 pins
+# `ort =2.0.0-rc.15`, which is exactly the version `parakeet-rs` 0.4.3 already
+# put in `Cargo.lock`. One `ort` in the tree, not two — and two would have been
+# fatal rather than awkward, since Cargo treats pre-releases as incompatible
+# unless they match exactly.
+#
+# It is also what closes the candidate list: of its 46 models the only
+# multilingual ones are `multilingual-e5` small/base/large, `bge-m3`,
+# `paraphrase-multilingual` and `EmbeddingGemma300M`. Granite, gte-multilingual,
+# Qwen3-Embedding and Solon are absent, and reaching them would mean driving
+# `ort` and `tokenizers` by hand.
+# `default-features = false` since 2026-11-22 (decision 131): its default links a
+# static ONNX Runtime, and the process now loads one DLL chosen at start-up.
+fastembed = { version = "7.7", default-features = false, features = ["hf-hub-native-tls", "ort-load-dynamic"] }
+# Named only for its `Environment` type: the process's one ONNX environment is
+# handed in from `app/` (see `E5Base::load`). Pinned to the version fastembed
+# and parakeet-rs already share — not a second runtime, the same one. No
+# features of its own: the ones fastembed turns on still apply.
+ort = { version = "=2.0.0-rc.15", default-features = false }

@@ -1,0 +1,108 @@
+/* ===========================================================================
+   Design tokens — imported from the mock-up, not re-derived.
+
+   The interface mock carries 600 lines of CSS tuned by hand, and the
+   values below are its `:root` verbatim. They were not chosen in a palette
+   tool; several of them are the fix for a defect that AGENTS.md records as an
+   invariant, and re-picking them would reproduce the defect.
+
+   The chrome is the ring's gradient and violet, and rounded — amber until the
+   2026-11-17 rework, when it moved to mean ARIA alone. Every colour now has
+   one job; the table is with `--chrome` below. That rule is why the interface
+   reads as one surface rather than themes competing.
+   =========================================================================== */
+:root {
+  color-scheme: dark;
+
+  --bg: #010409;
+  --panel: rgba(8, 14, 24, 0.62);
+
+  --line: rgba(255, 179, 71, 0.16);
+  --line-cool: rgba(64, 220, 255, 0.16);
+
+  --r-lg: 18px;
+  --r-md: 13px;
+  --r-sm: 9px;
+
+  /* Background panels stop here: above the menu button and the input field,
+     which take the full width underneath. */
+  --bg-bottom: 118px;
+
+  --cyan: #40dcff;
+  --cyan-dim: #1e7ea3;
+  --amber: #ffb347;
+  --text: #cfeaff;
+  /* Lightened on 2026-11-17: #4d7c99 sat at 4.5:1 on --bg, the bare WCAG AA
+     minimum, and much of what uses it is small. #6b98b6 is about 6.7:1. */
+  --dim: #6b98b6;
+
+  /* The semantic code of the visual rework (2026-11-17). Each colour has one
+     job, so a colour on screen can be read without a legend:
+       violet   the interface itself — active tab, section titles
+       cyan     the user — what ARIA heard
+       amber    ARIA — what she says, her name, the profile that lets her act
+       red      danger — STOP, a pending request, an error
+       green    success
+     Amber used to dress the whole chrome as well, and so meant four things. */
+  --chrome: #b7a4ff;
+  /* One focus ring for every control, light enough to read on the gradient
+     and on the dark background alike. */
+  --focus: #d4c8ff;
+  /* For reading rather than for chrome: ARIA's answers and a tile's text.
+     Rajdhani is condensed — fine for a label, tiring for three sentences. */
+  --font-read: "Segoe UI Variable Text", "Segoe UI", "Inter", system-ui, sans-serif;
+  --ok: #43ffa4;
+  --err: #ff5470;
+
+  --font-hud: "Rajdhani", "DejaVu Sans Condensed", "Liberation Sans Narrow",
+    system-ui, sans-serif;
+  --font-mono: "Share Tech Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+
+  /* The ring of the 2026-11-16 visual rework — blue, violet, pink, amber —
+     from the capture the user supplied. One gradient for every framed surface
+     (tiles, the menu, the input), so they read as one family. */
+  --ring: linear-gradient(
+    135deg,
+    #3fd0ff 0%,
+    #5b7bff 28%,
+    #a65bff 52%,
+    #ff5fb4 76%,
+    #ffb347 100%
+  );
+  --ring-width: 1.5px;
+  /* The input row's frame (2026-11-19): the orb's aurora palette — cyan,
+     indigo, pink, the colours of `orb.js` — at half strength, so the bar
+     under the orb reads as part of it rather than outshining it. Tiles keep
+     the full `--ring`. `--ring-soft-on` is the same with the field focused. */
+  --ring-soft: linear-gradient(
+    135deg,
+    rgba(63, 208, 255, 0.5) 0%,
+    rgba(123, 108, 255, 0.55) 50%,
+    rgba(255, 95, 180, 0.45) 100%
+  );
+  --ring-soft-on: linear-gradient(
+    135deg,
+    rgba(63, 208, 255, 0.75) 0%,
+    rgba(123, 108, 255, 0.8) 50%,
+    rgba(255, 95, 180, 0.7) 100%
+  );
+  /* Its glow: coloured shadows, each pushed towards the corner of its colour.
+     Shadows are not clipped by their element's own `overflow: hidden`, which
+     is what lets a scrolling or clipping surface still glow. */
+  --glow:
+    -10px -8px 28px -10px rgba(64, 170, 255, 0.55),
+    10px 10px 30px -10px rgba(255, 90, 190, 0.45),
+    14px -4px 34px -14px rgba(255, 170, 70, 0.35),
+    0 14px 40px rgba(0, 0, 0, 0.55);
+  /* The same, quieter, for surfaces that are always on screen. */
+  --glow-soft:
+    -8px -6px 22px -12px rgba(64, 170, 255, 0.4),
+    8px 8px 24px -12px rgba(255, 90, 190, 0.32),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+
+  /* risk scale — the original specification */
+  --risk-read: var(--dim);
+  --risk-low: var(--cyan);
+  --risk-medium: var(--amber);
+  --risk-high: var(--err);
+}

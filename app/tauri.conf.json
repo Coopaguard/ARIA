@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ARIA",
+  "version": "0.1.0",
+  "identifier": "dev.coopaguard.aria",
+  "build": {
+    "beforeDevCommand": "npm --prefix ui run dev",
+    "beforeBuildCommand": "npm --prefix ui run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ARIA",
+        "width": 1280,
+        "height": 800,
+        "resizable": true
+      },
+      {
+        "label": "overview",
+        "title": "ARIA — aperçu",
+        "url": "overview.html",
+        "width": 240,
+        "height": 400,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "shadow": false,
+        "focus": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:7421; frame-src http://127.0.0.1:7420; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Coopaguard/ARIA/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJENTg1QTlDQTNGMDkxQzcKUldUSGtmQ2puRnBZTFpPVzJDaDlnT2NQNnU3dWxDRFZPZ2dwc0JrMDRyQk44VnhER2owWjlmQmsK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "resources/wake/": "wake/",
+      "resources/voices/": "voices/",
+      "resources/phonon/": "phonon/",
+      "resources/ort/": ".",
+      "../LICENSE": "LICENSE.md",
+      "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

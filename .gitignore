@@ -1,0 +1,28 @@
+# Rust / Tauri
+target/
+**/target/
+*.pdb
+# Tauri generates these from tauri.conf.json at build time
+**/gen/schemas/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local-only files: screenshots taken to check a rendering, scratch output.
+# Restricted to the repository root so the Tauri icon set stays tracked.
+/*.png
+*.local
+
+# Voice recordings: the calibration set and the echo bench write here. Personal
+# audio, and it has no business in a public repository — F-B11 covers what leaves
+# the machine, this covers what leaves the laptop in a push.
+/samples/
+
+# The DirectML ONNX Runtime, fetched by app/build.rs (decision 131).
+/app/resources/ort/

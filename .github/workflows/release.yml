@@ -1,0 +1,195 @@
+name: Release
+
+# Déclenchée par le push d'une étiquette `vX.Y.Z` (ou `VX.Y.Z`) posée sur un
+# commit de `develop`. Décidé le 2026-11-23 : la release est un geste explicite,
+# pas l'effet de bord d'une fusion.
+#
+#     git tag v0.1.1 origin/develop && git push origin v0.1.1
+#
+# Refusée si le commit étiqueté n'est pas dans `develop`, ou si l'étiquette, les
+# quatre fichiers de version (`app/tauri.conf.json`, `Cargo.toml`,
+# `package.json`, `ui/package.json`) ne disent pas tous la même version.
+#
+# `latest.json`, déposé par tauri-action sur la release, est ce que l'application
+# interroge (app/src/update.rs). Chaque paquet est signé avec la clé
+# `TAURI_SIGNING_PRIVATE_KEY` ; sa moitié publique est dans `tauri.conf.json`.
+#
+# Windows x64 seulement : `.cargo/config.toml` exige x86-64-v3, et ARIA ne
+# tourne pas ailleurs aujourd'hui.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "V[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Étiquette existante à republier (ex. v0.2.0)"
+        required: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    name: Préparer la release
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          # Tout l'historique : il faut `develop` pour savoir si le commit en est.
+          fetch-depth: 0
+
+      - name: Vérifier la clé de signature des mises à jour
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY absent : les paquets de mise à jour ne peuvent pas être signés."
+            exit 1
+          fi
+
+      # L'application va chercher la voix française dans une release de données
+      # (`models-N`) : sans elle, un nouvel utilisateur n'a pas de voix.
+      - name: Vérifier que la voix française se télécharge
+        run: |
+          URL=$(grep -oE 'https://github.com/[^"]+/releases/download/models-[^"]+' crates/voice/src/tts/phonon.rs)
+          if ! curl -fsIL -o /dev/null "$URL"; then
+            echo "::error::$URL ne répond pas : publier d'abord la release de données."
+            exit 1
+          fi
+
+      - name: Vérifier l'étiquette et la version
+        id: meta
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^[vV][0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::« $TAG » n'est pas une étiquette de version (vX.Y.Z)."
+            exit 1
+          fi
+          VERSION="${TAG#[vV]}"
+
+          # Une release ne sort que de `develop` : ce qui n'y est pas n'est pas
+          # passé par la CI d'une pull request.
+          COMMIT=$(git rev-parse "$TAG^{commit}")
+          if ! git merge-base --is-ancestor "$COMMIT" origin/develop; then
+            echo "::error::$TAG pointe sur $COMMIT, qui n'est pas dans develop."
+            exit 1
+          fi
+
+          # Une version écrite à quatre endroits : un oubli publierait un
+          # installeur dont l'application et le paquet ne disent pas la même.
+          MANIFEST=$(node -p "require('./app/tauri.conf.json').version")
+          CARGO=$(node -e "const t=require('fs').readFileSync('Cargo.toml','utf8');const s=t.slice(t.indexOf('[workspace.package]'));console.log((s.match(/^version\s*=\s*\"([^\"]+)\"/m)||[])[1]||'')")
+          ROOT=$(node -p "require('./package.json').version")
+          UI=$(node -p "require('./ui/package.json').version")
+          for pair in "app/tauri.conf.json=$MANIFEST" "Cargo.toml=$CARGO" "package.json=$ROOT" "ui/package.json=$UI"; do
+            if [ "${pair#*=}" != "$VERSION" ]; then
+              echo "::error::$TAG annonce $VERSION, ${pair%%=*} déclare « ${pair#*=} »."
+              exit 1
+            fi
+          done
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Installeur Windows x64
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ui/package-lock.json
+
+      - run: npm ci
+      - run: npm --prefix ui ci
+
+      - name: Construire et déposer l'installeur
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "."
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: ARIA ${{ needs.prepare.outputs.version }}
+          releaseDraft: true
+
+  publish:
+    name: Publier
+    needs: [prepare, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Sommes de contrôle
+        run: |
+          mkdir -p assets && cd assets
+          gh release download "${{ needs.prepare.outputs.tag }}" --clobber
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attester la provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: "assets/*"
+
+      - name: Déposer les sommes et publier
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          gh release upload "$TAG" assets/SHA256SUMS --clobber
+          cat > notes.md <<'EOF'
+          ## Installation
+
+          Windows x64 : l'installeur `.exe`. Processeur Intel Haswell (2013) ou
+          AMD Zen (2017) minimum.
+
+          Une fois installée, ARIA vérifie au démarrage puis toutes les six heures
+          si une version plus récente existe, et propose de l'installer.
+
+          L'installeur n'est **pas signé** : SmartScreen affichera un éditeur
+          inconnu (« Informations complémentaires → Exécuter quand même »).
+
+          ## Vérification
+
+          ```
+          gh attestation verify <fichier> -R ${{ github.repository }}
+          sha256sum -c SHA256SUMS --ignore-missing
+          ```
+          EOF
+          gh release edit "$TAG" --notes-file notes.md --draft=false --latest

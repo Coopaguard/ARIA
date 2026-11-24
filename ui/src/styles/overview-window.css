@@ -1,0 +1,71 @@
+/* ===========================================================================
+   The overview WINDOW itself — not the shapes in it, which are overview.css.
+
+   Everything here exists to make the window disappear and leave only what is
+   painted. `base.css` is deliberately not imported: its background, its hex
+   weave and its vignette are the main window's, and any one of them would turn
+   this into the rectangle the whole design avoids.
+   =========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  /* The window is declared `transparent: true`; this is the other half of it.
+     An opaque body would show a black rectangle over the desktop, decorations
+     or not. */
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-hud);
+  overflow: hidden;
+  display: flex;
+  /* Bottom-aligned, not centred: the pill grows downwards when a request
+     arrives, and a centred layout would slide the orb up every time something
+     appeared under it. The orb is the one thing that should not move. */
+  align-items: flex-end;
+  justify-content: center;
+  /* Slack on every side. The window is 240×400 against content of 206, and the
+     margin is not decoration: the wedges scale to 1.06 on hover, and with the
+     window fitted exactly to the content that growth is clipped against the
+     window edge. */
+  padding: 0 0 16px;
+  color: var(--text);
+  /* The window has no decorations, so there is no title bar to grab. Dragging
+     anywhere that is not a control moves it. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  /* The drag region covers the whole window; the controls opt back out below,
+     otherwise clicking the orb would move the window instead of toggling the
+     microphone. */
+  -webkit-app-region: drag;
+}
+
+#app button,
+#app canvas {
+  -webkit-app-region: no-drag;
+}
+
+/* The prototype reads this one from its own `:root`; here it comes from
+   tokens.css, and the alias keeps overview.css usable unchanged. */
+:root {
+  --ov-mono: var(--font-mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

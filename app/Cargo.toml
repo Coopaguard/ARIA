@@ -1,0 +1,70 @@
+[package]
+name = "aria"
+description = "ARIA — a local voice assistant that delegates execution to a coding agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# The `_lib` suffix keeps the library name distinct from the binary name,
+# which collides on Windows: rust-lang/cargo#8519.
+name = "aria_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+# `build.rs` fetches the DirectML ONNX Runtime the installer ships (decision 131).
+ureq = "3"
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dependencies]
+aria-core.workspace = true
+# The voice chain. The core deliberately does not depend on it — it drags an
+# ONNX runtime — so the shell is where the two are married.
+aria-voice.workspace = true
+# The vectoriser. Only `app/` depends on it, and that is the shape of decision
+# 93: the core knows a four-method trait, the implementation is injected here,
+# exactly as a provider is.
+aria-memory.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# `tray-icon` is what makes sleep an actual state rather than a hidden window:
+# decision 9 says the application is a background service with a tray icon, so
+# with every window hidden there has to be something left to click.
+# `image-png` loads that icon from the one already in `icons/`.
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+
+# Ouvrir un lien dans le navigateur de l'utilisateur — `ui/open-link` de
+# SEP-1865.
+#
+# Une centaine de lignes de répartition par plateforme, et c'est exactement ce
+# qu'on ne veut pas réécrire : sous Windows l'ouverture passe par
+# `start "" "<url>"`, dont le premier argument vide est un titre de fenêtre et
+# non une erreur — on le redécouvre toujours une fois. Préféré à
+# `tauri-plugin-opener`, qui vise l'appel depuis le JavaScript et demanderait
+# une entrée de capacité : ici l'ouverture est décidée **en Rust**, après la
+# validation de `aria_core::tiles::openable`, et la fenêtre ne fait que relayer.
+open = "5"
+# The configurable global shortcut. 2.x, not 3.0.0-alpha, which targets Tauri v3.
+tauri-plugin-global-shortcut = "2.4"
+# Updates from GitHub releases: `latest.json` on the
+# latest release, every package signed, the public key in `tauri.conf.json`.
+tauri-plugin-updater = "2"
+# The configuration file. TOML rather than the YAML sketched in the original specification —
+# see `config.rs` for the two reasons and for what that settles.
+toml = "1"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+# The log files under `~/.aria/logs` — see `logs.rs`. Both were already in the
+# lock file, pulled by other crates.
+tracing-appender = "0.2"
+dirs = "6"
+
+[dev-dependencies]
+# For the instruction files: `instructions::ensure` writes to disk, and a test
+# of it has to write somewhere that is not the user's home.
+tempfile = "3"

@@ -1,0 +1,219 @@
+/* ===========================================================================
+   Le dedans d'une tuile.
+
+   Ce fichier n'est PAS chargé par la fenêtre. Il est embarqué par le core
+   (`include_str!`) et servi avec chaque tuile, sur l'origine du bac à sable —
+   une origine séparée ne peut pas atteindre la feuille de style de la fenêtre,
+   donc la seule façon de partager le dessin est de l'embarquer.
+
+   Il vit ici quand même, à côté de `tokens.css`, parce que la règle du dépôt
+   est que le dessin se modifie dans `ui/`. Une tuile qui ne ressemble pas au
+   reste est précisément ce que cette feuille existe pour empêcher.
+
+   LE MODÈLE N'ÉCRIT PAS DE CSS. L'outil `show_tile` prend un fragment HTML
+   sémantique ; tout ce qui suit lui est appliqué par-dessus. Ajouter une
+   classe ici, c'est l'ajouter au vocabulaire que la description de l'outil
+   annonce — les deux se tiennent, et l'un sans l'autre ne sert à rien.
+   =========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  /* Transparent : la tuile elle-même porte son fond et son flou, dans
+     `TileLayer.vue`. Un second fond ici dessinerait un rectangle opaque
+     par-dessus les coins arrondis. */
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-read); /* readable body text, 2026-11-17 */
+  font-size: 15px;
+  line-height: 1.45;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* Un enfant de conteneur flex reçoit `min-width: auto`, c'est-à-dire sa
+   largeur minimale de contenu : un tableau de plusieurs colonnes refuse alors
+   de rétrécir et déborde par la droite, hors de la tuile, sans barre de
+   défilement pour le dire. Une tuile descend à 210 px de large, donc le cas
+   arrive.
+
+   NON VÉRIFIÉ en photo, et c'est honnête de le dire : Chrome sans interface
+   refuse une fenêtre étroite, rend plus large puis recadre — AGENTS.md le
+   note déjà pour l'aperçu flottant. Une capture à 360 px est un rendu à
+   500 px rogné, et le débordement qu'on y croit voir n'existe pas. Cette
+   règle est donc une précaution de forme, pas la correction d'un défaut
+   observé. */
+body > * {
+  min-width: 0;
+}
+
+/* --- le texte ------------------------------------------------------------ */
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--amber);
+}
+
+h1 {
+  font-size: 19px;
+}
+h2 {
+  font-size: 16px;
+}
+h3 {
+  font-size: 14px;
+  color: var(--text);
+}
+
+p {
+  color: var(--text);
+}
+
+strong {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+em {
+  font-style: normal;
+  color: var(--cyan);
+}
+
+a {
+  /* Un lien mène quelque part depuis le 2026-11-01, mais pas tout seul : un
+     `href` cliqué ferait naviguer la tuile elle-même, et la couche la remet
+     en place. Pour envoyer l'utilisateur quelque part, la tuile appelle
+     `ui/open-link`, et ça s'ouvre dans SON navigateur — avec sa session, son
+     DRM et son plein écran. D'où le curseur : c'est cliquable quand la tuile
+     a câblé le clic. */
+  color: var(--cyan);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--cyan);
+  background: rgba(64, 220, 255, 0.07);
+  border-radius: var(--r-sm);
+  padding: 1px 5px;
+}
+
+/* --- les blocs que la description de l'outil annonce --------------------- */
+
+/* Le chiffre qu'on vient lire : une température, un total, un pourcentage. */
+.big {
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--amber);
+}
+
+/* La légende au-dessus d'un bloc. Petite, espacée, en capitales. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* Ce qui accompagne sans être l'information : unité, source, précision. */
+.note {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+/* Aligner deux ou trois choses sur une ligne, un chiffre et sa légende. */
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* --- listes et tableaux -------------------------------------------------- */
+
+ul,
+ol {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+li::marker {
+  color: var(--amber);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13.5px;
+}
+
+th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 400;
+  padding: 0 10px 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  padding: 5px 10px 5px 0;
+  border-bottom: 1px solid rgba(255, 179, 71, 0.07);
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Les nombres s'alignent par la droite et sur une chasse fixe, sinon une
+   colonne de chiffres se lit de travers. */
+td.num,
+th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- l'échelle de risque, la seule couleur qui veut dire quelque chose ---- */
+
+.ok {
+  color: var(--ok);
+}
+.warn {
+  color: var(--amber);
+}
+.bad {
+  color: var(--err);
+}
+
+img,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}

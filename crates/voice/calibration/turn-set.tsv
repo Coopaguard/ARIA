@@ -1,0 +1,61 @@
+# Calibration set for the end-of-turn threshold (T2).
+#
+# Twenty utterances in three families, interleaved on purpose: ten of the same
+# kind in a row and the speaker settles into one prosody, which is the one thing
+# this set must not measure.
+#
+#   fini        the turn is over, ARIA must answer
+#   hesitation  the speaker is still holding the floor: filler, lengthened
+#               vowel, pitch held up. ARIA must wait
+#   coupure     the speaker stops dead mid-phrase, no filler, no trailing off.
+#               ARIA must wait — and this is the hard family, because a clean
+#               cut and a finished sentence differ by **syntax**, which a
+#               waveform-only detector cannot see
+#
+# Record in this order, one file per line:
+#
+#   cargo run --release -p aria-voice --bin dictate -- --save
+#
+# PROTOCOL — it decides whether the numbers mean anything.
+#
+#  1. **Intonation carries the label, not the text.** An ellipsis on the page
+#     suspends nothing: if the voice falls on the last word, the utterance IS
+#     finished, and both the turn model and the ASR will say so. Three of the
+#     first twenty recordings died there — the ASR even wrote "de" as "d'eux."
+#     with a full stop, because that is genuinely what was said.
+#       - fini: let the voice fall, normally.
+#       - hesitation: lengthen the last syllable, keep the pitch UP, add the
+#         filler if it comes naturally.
+#       - coupure: stop dead, as if cut off — and above all **do not let the
+#         voice fall** on the last word. No ellipsis is written on those lines
+#         precisely so nothing invites trailing off.
+#  2. **Wait about one second of silence before pressing Enter.** The model
+#     judges the end of the stream: a recording cut at the instant the voice
+#     stops reads as "finished" whatever was said.
+#  3. One utterance per file. The index below is the file number.
+#
+# Then score the set:
+#
+#   cargo run --release -p aria-voice --bin turn -- --set
+#
+# index	label	text
+01	fini	Quelle heure est-il ?
+02	coupure	Est-ce que tu pourrais me
+03	hesitation	Alors, je voudrais… euh…
+04	fini	Ouvre le projet ARIA dans VS Code.
+05	coupure	Il faut que les enfants arrêtent de
+06	hesitation	Attends, comment ça s'appelle, le…
+07	fini	Merci Aria.
+08	coupure	Déplace le fichier dans
+09	hesitation	Je cherche le nom de… comment dire…
+10	fini	Il me faut la météo de demain à Lyon.
+11	coupure	Le rendez-vous est prévu pour
+12	hesitation	Il y a trois choses : la première, c'est… euh…
+13	fini	Non, laisse tomber.
+14	coupure	J'aimerais que tu t'occupes de
+15	hesitation	Donc si je comprends bien, tu veux dire que… hmm…
+16	fini	Range ça dans le dossier des factures, s'il te plaît.
+17	coupure	Donne-moi la liste des
+18	hesitation	Euh… est-ce que tu pourrais…
+19	fini	Aria, mets-toi en veille.
+20	fini	Deux cent trente-quatre euros.

@@ -1,0 +1,59 @@
+# ARIA — workspace root.
+#
+# Two crates, on purpose. The boundary that pays today is "runs without a
+# window": `aria-core` must build and test without Tauri or WebView2.
+# A module of `aria-core` is promoted to its own crate when it drags in its
+# own heavy dependency tree (voice and its ONNX runtime), or when a second
+# implementation has to compile against it without seeing the rest
+# (providers, the day a second agent lands).
+
+[workspace]
+resolver = "3"
+members = ["app", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "PolyForm-Noncommercial-1.0.0"
+repository = "https://github.com/Coopaguard/ARIA"
+
+[workspace.dependencies]
+aria-core = { path = "crates/core" }
+aria-voice = { path = "crates/voice" }
+# The third crate, for the reason the second exists: it drags ONNX.
+aria-memory = { path = "crates/memory" }
+anyhow = "1"
+# The core's own HTTP server. Not an implementation detail: decision 13 makes it
+# a piece of the core, because the tiles need a second local origin and the
+# window needs an event stream it can replay after a reconnect.
+axum = { version = "0.8", features = ["ws"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Les dépendances sont optimisées **même en debug**, et c'est la synthèse qui
+# l'a exigé.
+#
+# Mesuré le 2026-10-29 dans l'application : Kyutai produisait 1360 ms d'audio
+# en 3390 ms, soit 0,40× le temps réel — deux fois et demie plus lent que la
+# parole, donc des trous au milieu des phrases quoi qu'on fasse du découpage.
+# `npm run dev` construit en debug, et `xn`, le moteur d'inférence sous
+# `pocket-tts`, est du **Rust pur** : à `opt-level = 0` ses noyaux de calcul
+# sont inutilisables.
+#
+# `package."*"` et pas `profile.dev` entier : notre propre code garde ses
+# assertions, ses traces et sa compilation rapide. Seules les dépendances —
+# qu'on ne débogue pas — sont optimisées, une fois, puis mises en cache.
+[profile.dev.package."*"]
+opt-level = 3

@@ -1,0 +1,7 @@
+Phonon voices — gradium/phonon-voices
+https://huggingface.co/gradium/phonon-voices
+Revision 0ee17205f254b5abc43b266c8a0f215565c352f7, copied 2026-11-22.
+
+Licensed under the Apache License, Version 2.0
+(https://www.apache.org/licenses/LICENSE-2.0). README.md is the repository's
+own card, unchanged. The files are not modified.

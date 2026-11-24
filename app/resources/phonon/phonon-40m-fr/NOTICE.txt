@@ -1,0 +1,15 @@
+phonon-40m-fr, by Gradium
+https://huggingface.co/gradium/phonon-40m-fr
+Revision d91086970206b88efd2c88ca971d0628b5968f0f, copied 2026-11-24.
+config.json and tokenizer.json are here; model.safetensors is in the release
+models-1 of https://github.com/Coopaguard/ARIA, as phonon-40m-fr.safetensors.
+
+Licensed under Creative Commons Attribution-NonCommercial 4.0 International
+(https://creativecommons.org/licenses/by-nc/4.0/legalcode), without warranty.
+NO COMMERCIAL USE. The files are not modified.
+
+Phonon builds on Pocket TTS and the Mimi codec, developed by Kyutai.
+
+Responsible use, from the model's card: do not use Phonon to impersonate a real
+person, to deceive listeners about who is speaking, or to clone a voice without
+the speaker's consent.

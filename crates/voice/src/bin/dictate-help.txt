@@ -1,0 +1,28 @@
+dictate — capture, transcribe, and record samples for the bench
+
+USAGE
+  dictate [<model directory>] [options]
+
+MODES
+  (none)              speak into the microphone, one utterance at a time
+  --wav <file>        transcribe a 16 kHz mono file instead of the microphone
+  --bench [seconds]   time the compute path on a synthetic tone (default: 2.7)
+
+OPTIONS
+  --save <directory>  write each captured utterance as utterance-NN.wav.
+                      This is what T2 needs: the same voice, replayed, so that
+                      two turn detectors can be compared on identical input.
+  -h, --help          this
+
+MODEL
+  A positional argument, else $ARIA_ASR_MODEL, else
+  %LOCALAPPDATA%\ARIA\models\parakeet-tdt-0.6b-v3
+
+  Files: encoder-model.onnx, encoder-model.onnx.data, decoder_joint-model.onnx,
+  vocab.txt — from https://huggingface.co/altunenes/parakeet-rs, folder
+  parakeet-tdt-0.6b-v3.
+
+NOTE
+  Build with --release. Not for the reason one expects: the profile changes
+  little (353 ms debug against 245 ms release), because the time is spent inside
+  ONNX Runtime, which is prebuilt either way.

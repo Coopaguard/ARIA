@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the two windows are allowed to call. The overview needs the same event stream and the same permission answers as the main window: with the orb closed it is the only channel left, so a narrower capability here would be a request nobody can answer.",
+  "windows": ["main", "overview"],
+  "permissions": ["core:default"]
+}

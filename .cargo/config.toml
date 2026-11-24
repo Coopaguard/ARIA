@@ -1,0 +1,30 @@
+# Les noyaux SIMD de `xn` sont choisis **à la compilation**, donc ceci est un
+# réglage de construction et ne peut pas en être un d'application.
+#
+# `xn` est le moteur d'inférence sous `pocket-tts`, et c'est lui qui fait parler
+# Kyutai. Vérifié le 2026-10-30 : ni `xn` ni `xn-gemm` n'appellent
+# `is_x86_feature_detected`, donc il n'y a aucune sélection à l'exécution à
+# laquelle se raccrocher. Sans cette ligne, le moteur retombe sur la ligne de
+# base x86-64 — SSE2, ni AVX2 ni FMA — et la synthèse produit 0,49 seconde
+# d'audio par seconde de calcul. Sous 1,0, la voix ne tient pas sa propre
+# lecture : c'est la parole hachée. Avec, 1,66×. Décision 63.
+#
+# ## Le prix, et comment le refuser
+#
+# `x86-64-v3` exige **Intel Haswell (2013) ou AMD Zen (2017)**. Plus ancien, le
+# binaire ne démarre pas du tout : instruction illégale, pas « plus lent ».
+#
+# Pour construire portable, surcharger depuis l'environnement — vérifié le
+# 2026-10-30, `RUSTFLAGS` l'emporte sur ce fichier :
+#
+#     $env:RUSTFLAGS = "-C target-cpu=x86-64"   # PowerShell
+#     npm run dev
+#
+# Ou supprimer ce fichier, ce qui revient au même et évite de l'oublier posé.
+#
+# **À faire une fois, pas à alterner** : changer les `rustflags` invalide tout
+# le cache de compilation, dans les deux sens. Et la voix le dira — elle écrit
+# un avertissement au chargement quand elle tourne sans AVX2, pour qu'une
+# synthèse hachée ait une cause lisible plutôt qu'un symptôme.
+[target.'cfg(target_arch = "x86_64")']
+rustflags = ["-C", "target-cpu=x86-64-v3"]
