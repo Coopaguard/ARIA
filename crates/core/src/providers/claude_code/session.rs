@@ -214,7 +214,7 @@ pub async fn launch(
     let args = arguments(&spec);
     tracing::info!("launching {command} {}", args.join(" "));
 
-    let mut builder = tokio::process::Command::new(command);
+    let mut builder = crate::process::tokio_command(command);
     builder.args(&args);
     // Run the process IN the directory, not merely with access to it.
     // `--add-dir` grants access; it does not move the session, so without this

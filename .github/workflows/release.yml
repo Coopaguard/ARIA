@@ -156,11 +156,31 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Sommes de contrôle
+      # tauri-action écrit dans `latest.json` l'adresse de l'API GitHub, limitée
+      # sans compte à 60 requêtes par heure et par adresse IP : derrière une
+      # adresse partagée, la mise à jour échouerait. Le lien de téléchargement
+      # n'a pas cette limite. La signature porte sur l'installeur : elle ne
+      # change pas.
+      - name: Télécharger, et donner le lien direct à latest.json
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           mkdir -p assets && cd assets
-          gh release download "${{ needs.prepare.outputs.tag }}" --clobber
+          gh release download "$TAG" --clobber
           rm -f SHA256SUMS
+          SETUP=$(ls *-setup.exe)
+          if [ "$(wc -l <<< "$SETUP")" != 1 ]; then
+            echo "::error::Un seul installeur attendu, trouvé : $SETUP"
+            exit 1
+          fi
+          URL="https://github.com/$GH_REPO/releases/download/$TAG/$SETUP"
+          jq --arg url "$URL" '.platforms |= map_values(.url = $url)' latest.json > latest.new
+          mv latest.new latest.json
+          cat latest.json
+
+      - name: Sommes de contrôle
+        run: |
+          cd assets
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
@@ -172,7 +192,7 @@ jobs:
       - name: Déposer les sommes et publier
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
-          gh release upload "$TAG" assets/SHA256SUMS --clobber
+          gh release upload "$TAG" assets/latest.json assets/SHA256SUMS --clobber
           cat > notes.md <<'EOF'
           ## Installation
 

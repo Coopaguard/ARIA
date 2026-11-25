@@ -63,6 +63,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 
 - `%LOCALAPPDATA%/aria`: derived, large, downloadable again — models (3.7 GB) and index. Resolved by **one** function,
   `aria_voice::models_root()`. Never `app_local_data_dir()` for a model, and never rename the model folders.
+- `%LOCALAPPDATA%/bin/ARIA`: the program. Never `%LOCALAPPDATA%/ARIA`, Tauri's default: Windows ignores case, so it is
+  the folder above. `app/installer.nsh` sets it; a 0.1.0 already installed stays where it is.
 - `~/.aria`: what the user owns and opens — `memories/`, `AGENTS.md` and `subagents/AGENTS.md` (instructions, not this
   file), `db/aria.db`, `logs/` (seven days). Resolved in `app/`, never in the core.
 
@@ -74,6 +76,7 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - **Permissions go through a relay** (`--permission-prompt-tool`); a pattern registry in the core decides alone for
   known commands and sets the risk. `bypassPermissions` is excluded for good. A request **never expires**.
 - Four profiles — Plan, Strict, Normal, Autonomous — mapped to native modes **by the provider**.
+- Every process is started through `aria_core::process`, which hides its console; a test refuses any other way.
 - A provider declares its `Capabilities`; an engine without a relay gets a `StaticPolicy`, and exactly one of the two.
   Tool naming goes through `McpToolNaming`.
 - Models are chosen **by tier** (`rapide`, `standard`, `expert`), as a loose string. A delegated task runs at

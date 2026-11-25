@@ -39,6 +39,7 @@ pub mod events;
 pub mod mcp;
 pub mod orchestrator;
 pub mod permissions;
+pub mod process;
 pub mod providers;
 pub mod sessions;
 pub mod store;
