@@ -44,7 +44,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use anyhow::{Context, Result, bail};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStdin, Command};
+use tokio::process::{Child, ChildStdin};
 use tokio::sync::{Mutex, mpsc};
 
 use super::tools::SYSTEM_PROMPT;
@@ -345,7 +345,7 @@ impl MainAgent {
             );
         }
 
-        let mut child = Command::new(&config.command)
+        let mut child = crate::process::tokio_command(&config.command)
             .args(arguments(&config))
             // `--effort low` was not enough; this is the lever that works.
             .env("MAX_THINKING_TOKENS", "0")

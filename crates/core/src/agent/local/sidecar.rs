@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::sync::Mutex;
 
 use super::LocalConfig;
@@ -57,7 +57,7 @@ impl Sidecar {
             "lancement de llama-server : {}",
             args.join(" ")
         );
-        let mut child = Command::new(&config.server)
+        let mut child = crate::process::tokio_command(&config.server)
             .args(&args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -153,7 +153,7 @@ fn reap_orphan(server: &Path) -> bool {
     if !cfg!(windows) {
         return false;
     }
-    let ended = std::process::Command::new("taskkill")
+    let ended = crate::process::command("taskkill")
         .args(["/F", "/FI", &format!("PID eq {pid}"), "/FI", &format!("IMAGENAME eq {image}")])
         .output()
         .map(|out| out.status.success() && String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()))

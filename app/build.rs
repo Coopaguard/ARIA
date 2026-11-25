@@ -57,6 +57,8 @@ fn main() {
         }
     }
     println!("cargo:rerun-if-changed=build.rs");
+    // Tauri does not watch them: a new icon alone would leave the former one in the program.
+    println!("cargo:rerun-if-changed=icons");
     tauri_build::build()
 }
 

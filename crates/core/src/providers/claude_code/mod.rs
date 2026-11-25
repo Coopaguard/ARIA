@@ -248,7 +248,7 @@ impl AgentProvider for ClaudeCode {
 
 /// Ask the CLI what it is.
 async fn run_version(command: &str) -> anyhow::Result<String> {
-    let output = tokio::process::Command::new(command)
+    let output = crate::process::tokio_command(command)
         .arg("--version")
         .output()
         .await
@@ -264,7 +264,7 @@ async fn run_version(command: &str) -> anyhow::Result<String> {
 
 /// Run `claude mcp list` and hand back what it printed.
 async fn run_mcp_list(command: &str) -> anyhow::Result<String> {
-    let output = tokio::process::Command::new(command)
+    let output = crate::process::tokio_command(command)
         .args(["mcp", "list"])
         .stdin(std::process::Stdio::null())
         .kill_on_drop(true)
