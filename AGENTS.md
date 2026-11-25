@@ -64,7 +64,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - `%LOCALAPPDATA%/aria`: derived, large, downloadable again — models (3.7 GB) and index. Resolved by **one** function,
   `aria_voice::models_root()`. Never `app_local_data_dir()` for a model, and never rename the model folders.
 - `%LOCALAPPDATA%/bin/ARIA`: the program. Never `%LOCALAPPDATA%/ARIA`, Tauri's default: Windows ignores case, so it is
-  the folder above. `app/installer.nsh` sets it; a 0.1.0 already installed stays where it is.
+  the folder above. `app/installer.nsh` sets it; a 0.1.0 already installed stays where it is. The same file makes
+  an update wait for ARIA to be gone: without it, "Failed to kill ARIA".
 - `~/.aria`: what the user owns and opens — `memories/`, `AGENTS.md` and `subagents/AGENTS.md` (instructions, not this
   file), `db/aria.db`, `logs/` (seven days). Resolved in `app/`, never in the core.
 
