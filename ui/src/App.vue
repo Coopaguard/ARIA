@@ -16,6 +16,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import CommandBar from "./components/CommandBar.vue";
+import FirstRun from "./components/FirstRun.vue";
 import Conversations from "./components/Conversations.vue";
 import TileLayer from "./components/TileLayer.vue";
 import TopBar from "./components/TopBar.vue";
@@ -117,8 +118,16 @@ function onPress(event: PointerEvent) {
   leftOpen.value = false;
 }
 
+/** The first-run screen, until the user has been through it once. */
+const welcome = ref(false);
+
 onMounted(() => {
   watchUpdates();
+  // Without the core (Vite alone), no file to read: no first-run screen.
+  getConfig().then(
+    (config) => (welcome.value = !config.welcomed),
+    () => {},
+  );
   window.addEventListener("keydown", onKey);
   window.addEventListener("pointerdown", onPress);
 });
@@ -382,6 +391,9 @@ async function send(text: string) {
   <TileLayer />
 
   <UpdateOffer />
+  <!-- Built in T12 and never mounted until 2026-11-26: the first testers landed
+       on the orb with no word of what to do. -->
+  <FirstRun v-if="welcome" @done="welcome = false" />
 </template>
 
 <style scoped>

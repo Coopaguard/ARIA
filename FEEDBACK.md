@@ -20,5 +20,5 @@ released.
 - [ ] **Delegation is not always used.** The main agent sometimes works on a request itself instead of delegating it,
       which makes it slow. To be analysed on a complete trace of an exchange.
 - [x] **Named mode listens for 30 s after an answer**, counted from when ARIA stops talking. It was three minutes.
-- [ ] **Onboarding, quickly: testers are waiting.** The five-step first-run screen (`FirstRun.vue`) exists but was
-      never mounted, so a new user lands on the orb with no guidance.
+- [x] **Onboarding, quickly: testers are waiting.** The five-step first-run screen (`FirstRun.vue`) existed but was
+      never mounted, so a new user landed on the orb with no guidance. Mounted; to be seen on a real first start.
