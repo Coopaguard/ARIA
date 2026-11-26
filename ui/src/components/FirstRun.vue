@@ -15,8 +15,8 @@
  * Claude Code installed, and — for a gated voice model, which the
  * French one no longer is — a Hugging Face token.
  *
- * Finishing writes `welcomed = true`; « Relancer l'assistant » in the settings
- * writes it back to false.
+ * Finishing writes `welcomed = true`. Nothing in the settings plays it again:
+ * set `welcomed = false` in `aria.toml`.
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
@@ -24,6 +24,7 @@ import Settings from "./Settings.vue";
 import {
   getConfig,
   hfToken,
+  openLink,
   phononModels,
   providerInfo,
   saveConfig,
@@ -176,9 +177,10 @@ async function finish() {
             </template>
             <template v-else>
               <b>Claude Code est introuvable.</b> C'est lui qui fait réfléchir
-              ARIA. Installe-le, puis connecte-toi en lançant
-              <code>claude</code> une fois dans un terminal :
-              <pre>npm install -g @anthropic-ai/claude-code</pre>
+              ARIA. Installe-le en suivant
+              <a href="https://claude.com/claude-code" @click.prevent="openLink('https://claude.com/claude-code')">claude.com/claude-code</a>,
+              puis connecte-toi en lançant <code>claude</code> une fois dans un
+              terminal.
               <button class="hudbtn" :disabled="checking" @click="checkCli">
                 {{ checking ? "…" : "vérifier à nouveau" }}
               </button>

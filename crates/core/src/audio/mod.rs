@@ -324,12 +324,15 @@ impl ModeChange {
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// How long a wake ARIA gave itself lasts after the last turn that **named**
-/// it — decision 119, 2026-11-18.
+/// it, or the last answer — decision 119, 2026-11-18.
 ///
-/// Three minutes, set by the user: everything heard in that window goes to the
-/// agent, which decides what was addressed to it. Only a turn naming ARIA
-/// restarts it, so a room that keeps talking does not keep it awake.
-pub const WAKE_WINDOW: Duration = Duration::from_secs(180);
+/// Thirty seconds after ARIA stops talking, set by the user on 2026-11-26: three
+/// minutes, then two, kept it listening long after the exchange was over.
+/// Everything heard in that window goes to the agent, which decides what was
+/// addressed to it. Only a turn naming ARIA restarts it, so a room that keeps
+/// talking does not keep it awake; and it does not run while ARIA is still
+/// speaking ([`AudioGate::still_talking`]).
+pub const WAKE_WINDOW: Duration = Duration::from_secs(30);
 
 /// How many turns ARIA may **answer** in a row without being named, when it
 /// woke itself, before it decides the conversation is not with it.
@@ -438,7 +441,7 @@ impl AudioGate {
     /// Decision 119, two effects, both asked for by the user on 2026-11-18:
     ///
     /// - **it restarts the window.** The agent judged the turn was for it, and
-    ///   an exchange that is going on is not one to cut at three minutes;
+    ///   an exchange that is going on is not one to cut short;
     /// - **it counts, if the turn did not name ARIA.** That is the thing
     ///   decision 47 was catching — ARIA speaking into a conversation that may
     ///   not be its own — and three in a row sends it back to named-only.
@@ -453,6 +456,17 @@ impl AudioGate {
         self.last_turn_ended = Some(Instant::now());
         if self.woke_itself && !self.last_named {
             self.unnamed_turns = self.unnamed_turns.saturating_add(1);
+        }
+    }
+
+    /// ARIA is still speaking or thinking: the window starts again.
+    ///
+    /// An answer is `answer_spoken` when its **text** is done, and saying it
+    /// takes longer. Without this, a long answer would eat most of a
+    /// thirty-second window before the user could reply.
+    pub fn still_talking(&mut self) {
+        if self.mode == AudioMode::Active {
+            self.last_turn_ended = Some(Instant::now());
         }
     }
 
@@ -737,6 +751,18 @@ mod tests {
         );
     }
 
+    /// Thirty seconds once ARIA has stopped talking, not once its text was done.
+    #[test]
+    fn the_wake_window_waits_for_aria_to_stop_talking() {
+        let mut gate = AudioGate::new();
+        gate.apply(ModeTrigger::NameHeard).unwrap();
+        gate.answer_spoken();
+        gate.last_turn_ended = Instant::now().checked_sub(WAKE_WINDOW + Duration::from_secs(1));
+        assert!(gate.idle_expired(), "thirty seconds of quiet end the wake");
+        gate.still_talking();
+        assert!(!gate.idle_expired(), "while ARIA speaks, the window starts again");
+    }
+
     #[test]
     fn entering_active_does_not_inherit_an_old_timer() {
         let mut gate = AudioGate::new();
@@ -864,11 +890,11 @@ mod wake_window {
         assert!(!gate.talked_past_its_welcome());
     }
 
-    /// The window of a wake by name is the user's three minutes; a mode the
-    /// user switched on keeps two.
+    /// The window of a wake by name is the user's thirty seconds; a mode the
+    /// user switched on keeps two minutes.
     #[test]
-    fn a_wake_by_name_lasts_three_minutes() {
-        assert_eq!(WAKE_WINDOW, Duration::from_secs(180));
+    fn a_wake_by_name_lasts_thirty_seconds() {
+        assert_eq!(WAKE_WINDOW, Duration::from_secs(30));
         assert_eq!(IDLE_TIMEOUT, Duration::from_secs(120));
     }
 }

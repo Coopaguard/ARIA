@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "aria"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "aria-core",
@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "aria-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "aria-memory"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "aria-core",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "aria-voice"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "handy-cpal",

@@ -48,7 +48,7 @@ fn ready() -> (Arc<Core>, tempfile::TempDir) {
 // ------------------------------------------------------------ the handshake
 
 #[tokio::test]
-async fn a_real_mcp_client_lists_two_read_tools_and_gets_a_page() {
+async fn a_real_mcp_client_lists_three_tools_and_gets_a_page() {
     let (core, _dir) = ready();
 
     // Over a pipe rather than HTTP: the token guard is a layer in front of the
@@ -66,9 +66,12 @@ async fn a_real_mcp_client_lists_two_read_tools_and_gets_a_page() {
     let listed = client.list_all_tools().await.expect("tools/list answers");
     let mut names: Vec<&str> = listed.iter().map(|t| t.name.as_ref()).collect();
     names.sort_unstable();
-    // Two, and both read. The writes stay on the voice post, where there is a
-    // human in the room — see `aria_core::mcp::subagent`.
-    assert_eq!(names, vec![subagent::READ_PAGE, subagent::RECALL]);
+    // Two reads and a proposal. The writes stay on the voice post, where there
+    // is a human in the room — see `aria_core::mcp::subagent`.
+    assert_eq!(
+        names,
+        vec![subagent::PROPOSE, subagent::READ_PAGE, subagent::RECALL]
+    );
 
     // A resume, with the id a `read_page` then needs.
     let found = client
@@ -113,6 +116,129 @@ async fn a_real_mcp_client_lists_two_read_tools_and_gets_a_page() {
         .expect("a missing page is an answer, not a failure");
     let refusal = format!("{:?}", missing.content);
     assert!(refusal.contains("recall"), "{refusal}");
+
+    // A proposal needs to know whose session it is, and a pipe carries no
+    // token: refused in words, and nothing is kept.
+    let orphan = client
+        .call_tool(CallToolRequestParams::new(subagent::PROPOSE).with_arguments(
+            serde_json::json!({ "fact": "Il aime le thé." })
+                .as_object()
+                .cloned()
+                .unwrap_or_default(),
+        ))
+        .await
+        .expect("a proposal without a session is an answer, not a failure");
+    let said = format!("{:?}", orphan.content);
+    assert!(said.contains("pas reconnue"), "{said}");
+}
+
+// -------------------------------------------------------------- the proposal
+
+/// Over HTTP, with the session's token: the proposal lands under that session,
+/// which is the routing the pipe above cannot carry.
+#[tokio::test]
+async fn a_session_proposes_over_http_and_the_proposal_is_its_own() {
+    let (core, _dir) = ready();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+    let port = listener.local_addr().unwrap().port();
+    let session = core.open_session("une tâche", None);
+    let token = core.session_routes().open(session);
+    {
+        let core = Arc::clone(&core);
+        tokio::spawn(async move {
+            let _ = transport::serve_events_on(listener, core, SessionToken::new()).await;
+        });
+    }
+    let path = format!("{MEMORY_PATH}?s={token}");
+
+    let (status, head, _) = exchange(port, &path, None, &initialize()).await;
+    assert_eq!(status, 200, "{head}");
+    let id = head
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("mcp-session-id")
+                .then(|| value.trim().to_string())
+        })
+        .expect("a stateful server names its session");
+    let initialized = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+    exchange(port, &path, Some(&id), &initialized).await;
+
+    let call = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": subagent::PROPOSE,
+            "arguments": {
+                "fact": "Il a une imprimante Brother.",
+                "page": "materiel/imprimante"
+            }
+        }
+    });
+    let (status, _, body) = exchange(port, &path, Some(&id), &call).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("Proposé"), "{body}");
+
+    let kept = core.take_memory_proposals(session);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].fact, "Il a une imprimante Brother.");
+    assert_eq!(kept[0].page.as_deref(), Some("materiel/imprimante"));
+}
+
+fn initialize() -> serde_json::Value {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": { "name": "test", "version": "0" }
+        }
+    })
+}
+
+/// One JSON-RPC message posted, and the status, head and body that came back.
+async fn exchange(
+    port: u16,
+    path: &str,
+    session: Option<&str>,
+    message: &serde_json::Value,
+) -> (u16, String, String) {
+    const CRLF: &str = "\r\n";
+    let body = message.to_string();
+    let mut request = format!("POST {path} HTTP/1.1{CRLF}Host: 127.0.0.1{CRLF}");
+    request.push_str(&format!("Content-Type: application/json{CRLF}"));
+    request.push_str(&format!("Accept: application/json, text/event-stream{CRLF}"));
+    if let Some(id) = session {
+        request.push_str(&format!("Mcp-Session-Id: {id}{CRLF}"));
+    }
+    request.push_str(&format!("Content-Length: {}{CRLF}", body.len()));
+    request.push_str(&format!("Connection: close{CRLF}{CRLF}{body}"));
+
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .expect("the listener is up");
+    stream.write_all(request.as_bytes()).await.expect("sent");
+    let mut response = Vec::new();
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        stream.read_to_end(&mut response),
+    )
+    .await;
+    let text = String::from_utf8_lossy(&response).into_owned();
+    let blank = format!("{CRLF}{CRLF}");
+    let (head, body) = text.split_once(blank.as_str()).unwrap_or((text.as_str(), ""));
+    let status = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .unwrap_or(0);
+    (status, head.to_string(), body.to_string())
 }
 
 // ----------------------------------------------------------------- the token

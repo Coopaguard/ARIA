@@ -83,6 +83,8 @@ pub const MAX_HITS: usize = 5;
 
 pub const RECALL: &str = "recall";
 pub const READ_PAGE: &str = "read_page";
+/// Not a write: a proposal the main agent reads with the result (2026-11-26).
+pub const PROPOSE: &str = "propose_memory";
 
 /// What `--tools` would be passed for one of them, in Claude Code's spelling.
 ///
@@ -99,7 +101,7 @@ pub fn tool_name(tool: &str) -> String {
 /// test would auto-approve anything ever added to this module, including the
 /// write tools whose absence is the point.
 pub fn is_read_tool(naming: crate::providers::McpToolNaming, tool: &str) -> bool {
-    [RECALL, READ_PAGE]
+    [RECALL, READ_PAGE, PROPOSE]
         .iter()
         .any(|name| naming.matches(tool, SERVER_NAME, name))
 }
@@ -141,9 +143,8 @@ pub(crate) fn catalogue() -> Vec<crate::agent::tools::ToolSpec> {
                  ses sources et les pages qu'elle cite entre doubles crochets. \
                  `page` est l'identifiant rendu par recall, de la forme dossier/nom — \
                  pas un titre ni un chemin de fichier. Les pages citées s'ouvrent de la \
-                 même façon. Tu ne peux pas écrire ici : si tu apprends un fait durable \
-                 sur l'utilisateur, dis-le dans ton rapport final et ARIA décidera avec \
-                 lui s'il faut le retenir.",
+                 même façon. Tu n'écris pas dans la mémoire : propose avec \
+                 propose_memory.",
             schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -153,6 +154,34 @@ pub(crate) fn catalogue() -> Vec<crate::agent::tools::ToolSpec> {
                     }
                 },
                 "required": ["page"],
+                "additionalProperties": false
+            }),
+        },
+        ToolSpec {
+            name: PROPOSE,
+            description: "Propose à ARIA de retenir un fait durable sur l'utilisateur, \
+                 appris pendant ta tâche : une préférence, une décision, une habitude, \
+                 son matériel, un nom qu'il emploie. Rien n'est écrit : ARIA lit tes \
+                 propositions avec ton résultat et garde ce qui en vaut la peine. \
+                 Pas un résultat de recherche ni une donnée du jour, pas un secret, pas \
+                 ce que la mémoire sait déjà. Cinq au plus.",
+            schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "fact": {
+                        "type": "string",
+                        "description": "Le fait, en une phrase, avec une date absolue s'il en faut une."
+                    },
+                    "page": {
+                        "type": "string",
+                        "description": "La page qui irait, de la forme dossier/nom, si tu en as une idée."
+                    },
+                    "why": {
+                        "type": "string",
+                        "description": "Pourquoi c'est durable, en quelques mots."
+                    }
+                },
+                "required": ["fact"],
                 "additionalProperties": false
             }),
         },
@@ -223,6 +252,38 @@ impl MemoryTools {
         }
     }
 
+    /// Leave a proposal for the main agent. Needs to know which session asks,
+    /// so it reads the token the way the relay does.
+    fn propose(
+        &self,
+        arguments: JsonObject,
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> CallToolResult {
+        let Some(fact) = text(&arguments, "fact") else {
+            return refuse("Il manque le fait à proposer.");
+        };
+        let Some(session) = context
+            .extensions
+            .get::<http::request::Parts>()
+            .and_then(|parts| crate::mcp::token_in(parts.uri.query()?))
+            .and_then(|token| self.core.session_routes().resolve(token))
+        else {
+            return refuse("Cette session n'est pas reconnue : proposition ignorée.");
+        };
+        let proposal = crate::agent::delegation::MemoryProposal {
+            fact,
+            page: text(&arguments, "page"),
+            why: text(&arguments, "why"),
+        };
+        if self.core.propose_memory(session, proposal) {
+            CallToolResult::success(vec![ContentBlock::text(
+                "Proposé : ARIA le lira avec ton résultat.".to_string(),
+            )])
+        } else {
+            refuse("Cinq propositions au plus par tâche.")
+        }
+    }
+
     /// One page, in full.
     fn read_page(&self, arguments: JsonObject) -> CallToolResult {
         let Some(page) = text(&arguments, "page") else {
@@ -240,8 +301,9 @@ impl MemoryTools {
 impl rmcp::ServerHandler for MemoryTools {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
-            "Mémoire personnelle de l'utilisateur d'ARIA, en lecture. \
-             Consulte-la avant de supposer quelque chose sur lui.",
+            "Mémoire personnelle de l'utilisateur d'ARIA : la lire, et proposer \
+             ce qu'il faudrait y ajouter. Consulte-la avant de supposer quelque \
+             chose sur lui.",
         )
     }
 }
@@ -251,6 +313,7 @@ async fn dispatch(context: ToolCallContext<'_, MemoryTools>) -> Result<CallToolR
     let result = match context.name.as_ref() {
         RECALL => context.service.recall(arguments),
         READ_PAGE => context.service.read_page(arguments),
+        PROPOSE => context.service.propose(arguments, &context.request_context),
         other => refuse(format!("La mémoire d'ARIA n'a pas d'outil {other}.")),
     };
     Ok(result.into())
@@ -339,14 +402,14 @@ mod tests {
         assert!(!is_read_tool(NAMING, "mcp__aria__approve"));
     }
 
-    /// The post is read-only, and that is the whole shape of it — so it is
-    /// asserted rather than described. A write tool added here would also be
-    /// auto-approved by nothing, but it would be a write with no human in the
-    /// room, which is what decision 106 refused.
+    /// The post reads and proposes; it never writes. A proposal is read by
+    /// the main agent, which decides (2026-11-26). A write tool added here
+    /// would be a write with no one deciding, which is what decision 106
+    /// refused.
     #[test]
     fn no_write_verb_is_published_here() {
         let names: Vec<&str> = catalogue().iter().map(|spec| spec.name).collect();
-        assert_eq!(names, vec![RECALL, READ_PAGE]);
+        assert_eq!(names, vec![RECALL, READ_PAGE, PROPOSE]);
         for name in names {
             for write in [
                 crate::agent::tools::REMEMBER,
@@ -397,10 +460,28 @@ mod tests {
     }
 
     #[test]
-    fn the_two_tools_are_published_and_nothing_else_is() {
+    fn the_three_tools_are_published_and_nothing_else_is() {
         let tools = MemoryTools::new(Core::new());
         let mut published = tools.published();
         published.sort();
-        assert_eq!(published, vec!["read_page", "recall"]);
+        assert_eq!(published, vec!["propose_memory", "read_page", "recall"]);
+    }
+
+    /// Proposals wait in the core, five at most, and are handed over once.
+    #[test]
+    fn proposals_are_kept_per_session_and_taken_once() {
+        use crate::agent::delegation::{MAX_PROPOSALS, MemoryProposal};
+        let core = Core::new();
+        let session = crate::sessions::SessionId::new();
+        let other = crate::sessions::SessionId::new();
+        let one = |fact: &str| MemoryProposal { fact: fact.into(), page: None, why: None };
+        for i in 0..MAX_PROPOSALS {
+            assert!(core.propose_memory(session, one(&format!("fait {i}"))));
+        }
+        assert!(!core.propose_memory(session, one("de trop")));
+        assert!(core.propose_memory(other, one("autre")));
+        assert_eq!(core.take_memory_proposals(session).len(), MAX_PROPOSALS);
+        assert!(core.take_memory_proposals(session).is_empty());
+        assert_eq!(core.take_memory_proposals(other).len(), 1);
     }
 }

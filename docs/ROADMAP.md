@@ -3,9 +3,11 @@
 What is left to do and what may come. **The order is not a priority.** A linked task has a page with
 what is already known; delete both when the task is done.
 
-## First release
+## Releases
 
-- [ ] [Publish the first release, then a second one to prove the update](todos/first-release.md)
+- [ ] Install on a machine without Claude Code: what the first-start screen says
+- [ ] See a tag outside `develop`, or one that disagrees with the version files, refused
+- [ ] Authenticode signing: without it SmartScreen announces an unknown publisher. Not planned yet
 - [ ] [Ship the licence texts of the dependencies](todos/dependency-licences.md)
 
 ## To check in real use

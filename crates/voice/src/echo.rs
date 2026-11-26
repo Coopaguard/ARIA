@@ -570,9 +570,81 @@ pub fn is_self_echo(heard: &str, spoken: &str) -> bool {
 /// would swallow a real request without a trace anyone would find.
 pub const SPOKEN_MEMORY: Duration = Duration::from_secs(8);
 
+/// How long a sentence stays worth **stripping** from the start of a turn.
+///
+/// Longer than [`SPOKEN_MEMORY`] because the turn is only transcribed whole
+/// when it ends, and an echo turn lasts as long as ARIA spoke, then as long as
+/// the user adds to it. Measured on 2026-11-26: a seventeen-second answer came
+/// back as the opening of a turn that closed thirty-five seconds after the
+/// sentence was logged.
+pub const ECHO_TEXT_MEMORY: Duration = Duration::from_secs(60);
+
+/// How many of ARIA's word pairs, net of the pairs that are not hers, make a
+/// prefix an echo. Eight is nine words or so said back in order: a user
+/// repeating a short answer stays a user, and the veto's own tests still pass.
+pub const MIN_ECHO_PAIRS: i32 = 8;
+
 /// How many sentences are kept at most, whatever the clock says. A bound on
 /// the memory, not on the reasoning: [`SPOKEN_MEMORY`] is what decides.
 const SPOKEN_KEPT: usize = 32;
+
+/// Where the user starts speaking, in a transcript that opens with ARIA's own
+/// words: a byte offset into `heard`, or `None` when it does not open that way.
+///
+/// Seen on 2026-11-26, on a headset the acoustic gate had rightly judged
+/// `Absent`: turns opening with ARIA's last answer, mangled (« le réglève
+/// concerne le rôle d'aria, les boss constatés… »), then the user's own words.
+/// Three of them were acted on as requests. The veto cannot help there — the
+/// coupling is `Absent`, and a veto would drop the user's half too.
+///
+/// So this **cuts** rather than vetoes, and on **word pairs** rather than
+/// words: common words (« je », « de », « dossier ») are shared by any two
+/// French sentences, pairs in order are not. Each pair of `heard` scores +1 if
+/// ARIA said it, -1 if not; the echo ends where the running score peaks, from
+/// the first word. What follows is kept, so a user quoting ARIA before asking
+/// something loses the quote and keeps the question.
+pub fn echo_prefix_end(heard: &str, spoken: &str) -> Option<usize> {
+    let heard_words = words_at(heard);
+    if heard_words.len() < 2 {
+        return None;
+    }
+    let spoken_words: Vec<String> = words_at(spoken).into_iter().map(|(w, _)| w).collect();
+    let pairs: std::collections::HashSet<(&str, &str)> = spoken_words
+        .windows(2)
+        .map(|p| (p[0].as_str(), p[1].as_str()))
+        .collect();
+
+    let (mut score, mut best, mut best_at) = (0i32, 0i32, None);
+    for (i, pair) in heard_words.windows(2).enumerate() {
+        score += if pairs.contains(&(pair[0].0.as_str(), pair[1].0.as_str())) { 1 } else { -1 };
+        if score > best {
+            best = score;
+            best_at = Some(i);
+        }
+    }
+    if best < MIN_ECHO_PAIRS {
+        return None;
+    }
+    // Pair `i` covers words `i` and `i + 1`: the user starts at `i + 2`.
+    let next = best_at? + 2;
+    Some(heard_words.get(next).map_or(heard.len(), |(_, at)| *at))
+}
+
+/// The words of a text, folded, each with the byte offset it starts at.
+fn words_at(text: &str) -> Vec<(String, usize)> {
+    let mut out = Vec::new();
+    let mut current: Option<(String, usize)> = None;
+    for (at, c) in text.char_indices() {
+        if c.is_alphanumeric() {
+            let (word, _) = current.get_or_insert_with(|| (String::new(), at));
+            word.extend(c.to_lowercase());
+        } else if let Some(done) = current.take() {
+            out.push(done);
+        }
+    }
+    out.extend(current);
+    out
+}
 
 /// What ARIA has just said, so a transcript can be matched against it.
 ///
@@ -645,17 +717,47 @@ impl SpokenLog {
             return false;
         };
         Self::trim(&mut said, now);
-        if said.is_empty() {
+        let spoken: Vec<&str> = said
+            .iter()
+            .filter(|(at, _)| now.duration_since(*at) <= SPOKEN_MEMORY)
+            .map(|(_, text)| text.as_str())
+            .collect();
+        if spoken.is_empty() {
             return false;
         }
-        let spoken: Vec<&str> = said.iter().map(|(_, text)| text.as_str()).collect();
         is_self_echo(heard, &spoken.join(" "))
+    }
+
+    /// The transcript without the opening that repeats ARIA, when it has one.
+    ///
+    /// Asked whatever the coupling — see [`echo_prefix_end`] for why, and for
+    /// why it cuts instead of vetoing. `Some("")` when the whole turn was ARIA.
+    /// A poisoned lock strips nothing, in the same direction as the veto.
+    pub fn strip(&self, heard: &str) -> Option<String> {
+        self.strip_at(Instant::now(), heard)
+    }
+
+    fn strip_at(&self, now: Instant, heard: &str) -> Option<String> {
+        let Ok(mut said) = self.said.lock() else {
+            return None;
+        };
+        Self::trim(&mut said, now);
+        if said.is_empty() {
+            return None;
+        }
+        let spoken: Vec<&str> = said.iter().map(|(_, text)| text.as_str()).collect();
+        let end = echo_prefix_end(heard, &spoken.join(" "))?;
+        Some(
+            heard[end..]
+                .trim_start_matches(|c: char| !c.is_alphanumeric())
+                .to_string(),
+        )
     }
 
     fn trim(said: &mut VecDeque<(Instant, String)>, now: Instant) {
         while said
             .front()
-            .is_some_and(|(at, _)| now.duration_since(*at) > SPOKEN_MEMORY)
+            .is_some_and(|(at, _)| now.duration_since(*at) > ECHO_TEXT_MEMORY)
         {
             said.pop_front();
         }
@@ -912,6 +1014,67 @@ mod tests {
     fn an_empty_log_vetoes_nothing() {
         let log = SpokenLog::new();
         assert!(!log.vetoes("il fera vingt quatre degrés ce matin", ROOM));
+    }
+
+    /// What ARIA said on 2026-11-26, and the turn that came back: its answer,
+    /// mangled by the transcription, then the user's own request.
+    const ANSWER: &str = "Je n'ai pas écrit de fichier de logs : l'analyse du bug est seulement \
+        dans le journal de mémoire d'ARIA, à la date du 26 novembre. Je ne connais pas le chemin \
+        de ce journal, donc je ne peux pas vous ouvrir de dossier précis. Voulez-vous que je \
+        demande à un agent de le retrouver dans votre dossier ARIA ?";
+    const CAME_BACK: &str = "Je n'ai pas aussi de suite de log, l'analyse du bug est seulement \
+        dans le journal de mémoire d'Aria, à la date du 26 novembre. Je ne connais pas le son de \
+        ce journal, donc je ne vais pas vous ouvrir de dossier précis. Doulez-vous que je demande \
+        à un agent de le retrouver dans votre dossier Aria. Oui, et je veux qu'il me crée un \
+        dossier quelque part avec toutes les informations nécessaires.";
+
+    /// The echo goes, the request stays — on a headset, where the veto is
+    /// rightly disarmed.
+    #[test]
+    fn an_echoed_opening_is_cut_and_the_request_kept() {
+        let log = SpokenLog::new();
+        log.push(ANSWER);
+        assert!(!log.vetoes(CAME_BACK, Coupling::Absent));
+        assert_eq!(
+            log.strip(CAME_BACK).as_deref(),
+            Some("Oui, et je veux qu'il me crée un dossier quelque part avec toutes les informations nécessaires.")
+        );
+    }
+
+    /// All of it ARIA: nothing is left to act on.
+    #[test]
+    fn a_turn_that_is_only_the_echo_is_left_empty() {
+        let log = SpokenLog::new();
+        log.push(ANSWER);
+        let only = &CAME_BACK[..CAME_BACK.find(" Oui,").unwrap()];
+        assert_eq!(log.strip(only).as_deref(), Some(""));
+    }
+
+    /// A user repeating a short answer, or asking with ARIA's common words,
+    /// is not cut.
+    #[test]
+    fn a_short_repeat_or_shared_words_are_not_cut() {
+        let log = SpokenLog::new();
+        log.push(SAID);
+        assert_eq!(log.strip("il fera vingt quatre degrés ce matin"), None);
+        log.push(ANSWER);
+        assert_eq!(
+            log.strip("Ouvre-moi le dossier du journal de mémoire, je veux le lire avec un agent"),
+            None
+        );
+    }
+
+    /// Kept for a minute, which is what a long answer followed by a long turn
+    /// needs; the veto still looks back eight seconds only.
+    #[test]
+    fn the_strip_remembers_longer_than_the_veto() {
+        let log = SpokenLog::new();
+        let spoke = Instant::now();
+        log.push_at(spoke, ANSWER);
+        let later = spoke + Duration::from_secs(35);
+        assert!(log.strip_at(later, CAME_BACK).is_some());
+        assert!(!log.vetoes_at(later, CAME_BACK, ROOM));
+        assert!(log.strip_at(spoke + ECHO_TEXT_MEMORY + Duration::from_secs(1), CAME_BACK).is_none());
     }
 
     /// An echo does not respect the boundary between two sentences ARIA spoke

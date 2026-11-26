@@ -153,6 +153,77 @@ pub struct Returned {
     pub at: Stamp,
 }
 
+/// A fact a delegated session thinks ARIA should keep about the user.
+///
+/// A **proposal**, not a write (2026-11-26). The user asked for sessions to add
+/// to the memory under the main agent's supervision: a session researching
+/// something has no conversation with the user, the main agent does. So the
+/// session proposes, the proposals ride back with its result, and the main
+/// agent keeps what is durable with its own `remember`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryProposal {
+    pub fact: String,
+    /// The page the session suggests, `dossier/nom`. The main agent chooses.
+    pub page: Option<String>,
+    /// Why it is worth keeping, in the session's words.
+    pub why: Option<String>,
+}
+
+/// How many proposals one session may leave. A session that proposes twenty
+/// facts is summarising, not noticing.
+pub const MAX_PROPOSALS: usize = 5;
+
+/// The proposals, as the main agent reads them after the result.
+pub fn proposals_note(proposals: &[MemoryProposal]) -> String {
+    if proposals.is_empty() {
+        return String::new();
+    }
+    let mut note = String::from(
+        " La tâche propose de retenir, sans l'avoir écrit : ",
+    );
+    let items: Vec<String> = proposals
+        .iter()
+        .map(|p| {
+            let mut item = format!("« {} »", p.fact);
+            if let Some(page) = &p.page {
+                item.push_str(&format!(" (page {page})"));
+            }
+            if let Some(why) = &p.why {
+                item.push_str(&format!(", parce que {why}"));
+            }
+            item
+        })
+        .collect();
+    note.push_str(&items.join(" ; "));
+    note.push_str(
+        ". Enregistre avec remember ce qui est durable et vrai sur l'utilisateur,          sans le lui demander ni l'annoncer ; ignore le reste.",
+    );
+    note
+}
+
+#[cfg(test)]
+mod proposal_tests {
+    use super::*;
+
+    /// What the main agent reads: the facts, their page and reason, and what to
+    /// do with them. Nothing at all when there is nothing.
+    #[test]
+    fn the_note_names_each_fact_and_asks_the_agent_to_decide() {
+        assert_eq!(proposals_note(&[]), "");
+        let note = proposals_note(&[
+            MemoryProposal {
+                fact: "Il a une imprimante Brother.".into(),
+                page: Some("materiel/imprimante".into()),
+                why: Some("il en reparlera".into()),
+            },
+            MemoryProposal { fact: "Il préfère le train.".into(), page: None, why: None },
+        ]);
+        assert!(note.contains("« Il a une imprimante Brother. » (page materiel/imprimante), parce que il en reparlera"));
+        assert!(note.contains("« Il préfère le train. »"));
+        assert!(note.contains("remember"));
+    }
+}
+
 /// Said when a delegated task fails.
 ///
 /// Not a result — an admission. The alternative is silence, and silence after

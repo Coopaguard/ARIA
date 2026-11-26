@@ -64,7 +64,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - `%LOCALAPPDATA%/aria`: derived, large, downloadable again — models (3.7 GB) and index. Resolved by **one** function,
   `aria_voice::models_root()`. Never `app_local_data_dir()` for a model, and never rename the model folders.
 - `%LOCALAPPDATA%/bin/ARIA`: the program. Never `%LOCALAPPDATA%/ARIA`, Tauri's default: Windows ignores case, so it is
-  the folder above. `app/installer.nsh` sets it; a 0.1.0 already installed stays where it is.
+  the folder above. `app/installer.nsh` sets it; a 0.1.0 already installed stays where it is. The same file makes
+  an update wait for ARIA to be gone: without it, "Failed to kill ARIA".
 - `~/.aria`: what the user owns and opens — `memories/`, `AGENTS.md` and `subagents/AGENTS.md` (instructions, not this
   file), `db/aria.db`, `logs/` (seven days). Resolved in `app/`, never in the core.
 
@@ -86,8 +87,9 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - The voice post answers alone or delegates. A result comes back as `Told::Returned`, already spoken. **Timestamps go
   on each message, never in the system prompt**, which is frozen at the first request.
 - A follow-up goes to the same session (`delegate_task.follows`); a session answers its tasks in order.
-- Three MCP posts: relay and tiles, voice, and a **read-only** memory post for sessions. What ARIA remembers is decided
-  in the conversation. Sessions load the user's connectors; the voice post does not.
+- Three MCP posts: relay and tiles, voice, and a memory post for sessions that **reads and proposes, never writes**:
+  `propose_memory` rides back with the result and the main agent keeps what is durable. Sessions load the user's
+  connectors; the voice post does not.
 - Budgets, held by tests: tool catalogue 3150 bytes sent per turn, system prompt 1600.
 - The voice post runs in `~/.aria`, sessions in `~/.aria/subagents`; a `CLAUDE.md` above would change the answers, and
   `claude_md_above` checks for it.
@@ -97,7 +99,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - Cutting ARIA off has two signals, and the fast one **never cuts on energy alone**: until the echo gate has learned
   the room, it cuts nothing.
 - ARIA does not hear itself: `echo::SpokenLog` vetoes its own words, except when the coupling is `Absent`. The margin is
-  8 dB, measured. The veto comes **before** the name, enforced by the type `voice::Allowed`.
+  8 dB, measured. The veto comes **before** the name, enforced by the type `voice::Allowed`. Whatever the coupling, a
+  turn that **opens** with ARIA's last minute of speech has that opening cut (`SpokenLog::strip`), never the rest.
 - An interruption stops the CLI's turn, not a turn that called a tool, and not delegated sessions. STOP cuts everything.
 - A breath is not a voice: cutting needs voiced frames, and a turn needs words.
 - End-of-turn patience slows down, and never waits forever.
@@ -145,7 +148,8 @@ installer and `latest.json`, adds `SHA256SUMS` and the attestation, then publish
 - **Signing key** (minisign): `~/.tauri/aria.key`, no password, and the secret `TAURI_SIGNING_PRIVATE_KEY`; the public
   half is in `app/tauri.conf.json`. Losing it ends updates everywhere; leaking it lets someone sign a false one.
 - A local `npm run build` signs too: `$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content ~/.tauri/aria.key -Raw`.
-- The application checks at start and every six hours, **offers** the update, verifies its signature and restarts.
+- The application checks at start and **installs** a newer version at once; the checks every six hours after only
+  **offer** it, since a task may be running. It verifies the signature and restarts.
 - Shipped: the program, `resources/wake`, `resources/voices`, `resources/phonon`, ONNX Runtime. Downloaded: models from
   Hugging Face, the French voice model from our release **`models-1`**, CUDA (1.3 GB, when enabled). Installed by the
   user: Claude Code, `llama-server`.

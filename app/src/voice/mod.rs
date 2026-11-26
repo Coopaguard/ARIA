@@ -727,6 +727,21 @@ fn act(
         engine.end_turn();
         return;
     };
+    // The opening of a turn that repeats ARIA is cut, whatever the coupling
+    // (2026-11-26): on a headset judged `Absent` the veto is rightly off, yet
+    // three turns opening with ARIA's last answer were acted on. What the user
+    // added after it is kept; a turn that was only ARIA is left without words
+    // and goes no further, just below.
+    let mut heard = heard;
+    if let Some(rest) = spoken.strip(&heard.transcript) {
+        tracing::info!(
+            ?coupling,
+            kept = rest.split_whitespace().count(),
+            "début du tour reconnu comme ma propre voix : retiré"
+        );
+        tracing::trace!(transcript = %heard.transcript, "écho retiré");
+        heard.transcript = rest;
+    }
     // A pause with no words in it — a breath, vape breathed out near the
     // microphone, a chair — is not someone talking. Before 2026-11-23 it was
     // published anyway, and `Listening` is what silences ARIA on the slow

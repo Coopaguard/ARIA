@@ -494,9 +494,15 @@ impl Conversation {
                 if !self.core.tiles().shown_by(*session).is_empty() {
                     returned.inform_agent.push_str(" (Sa tuile est à l'écran.)");
                 }
+                let proposals = self.core.take_memory_proposals(*session);
+                returned
+                    .inform_agent
+                    .push_str(&delegation::proposals_note(&proposals));
                 Some(returned)
             }
             Event::TaskError { session, message } => {
+                // A failed task's proposals are not worth more than its result.
+                self.core.take_memory_proposals(*session);
                 delegation::failed(&self.delegations, &mut journal, at, *session, message)
             }
             _ => None,

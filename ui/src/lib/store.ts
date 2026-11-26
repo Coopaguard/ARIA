@@ -103,6 +103,13 @@ export interface Store {
    * conversation is visible, so it is what the first real test is read from.
    */
   spoken: string[];
+  /** How many lines ARIA has said since the window opened, trimmed or not. */
+  spokenTotal: number;
+  /**
+   * `spokenTotal` when the user last spoke or typed: what ARIA said before
+   * that sentence and what it said after are shown on either side of it.
+   */
+  askedAt: number;
   /** How loud the microphone is, 0 to 1. Not an event: see `stream.ts`. */
   level: number;
   /** Last refusal from the core, in French, for the status line. */
@@ -129,6 +136,8 @@ export const store = reactive<Store>({
   tilesServed: true,
   heard: null,
   spoken: [],
+  spokenTotal: 0,
+  askedAt: 0,
   level: 0,
   notice: null,
 });
@@ -157,6 +166,25 @@ export function applySnapshot(snapshot: Snapshot): void {
   // utterance in flight. Restoring a stale one would put words back on
   // screen that nobody is saying any more.
   store.heard = null;
+}
+
+/** The user starts a sentence, spoken or typed. */
+export function markAsked() {
+  store.askedAt = store.spokenTotal;
+}
+
+/**
+ * ARIA's lines around the user's last sentence, in the order they were said.
+ *
+ * `before` is the line just before it, `after` at most two said since. With no
+ * sentence yet, the last two lines are `after`.
+ */
+export function exchange(): { before: string | null; after: string[] } {
+  const first = store.spokenTotal - store.spoken.length;
+  const at = (n: number) => (n >= first && n < store.spokenTotal ? store.spoken[n - first] : null);
+  if (store.askedAt === 0 && !store.heard) return { before: null, after: store.spoken.slice(-2) };
+  const since = store.spoken.slice(Math.max(0, store.askedAt - first));
+  return { before: at(store.askedAt - 1), after: since.slice(-2) };
 }
 
 function find(id: string): SessionView | undefined {
@@ -259,6 +287,7 @@ export function applyEvent(envelope: Envelope): void {
     case "transcript.partial":
       // A final utterance stays until the next one starts; a partial is
       // replaced as it is corrected.
+      if (!store.heard || store.heard.final) markAsked();
       store.heard = { text: envelope.text, final: envelope.final };
       break;
 
@@ -266,6 +295,7 @@ export function applyEvent(envelope: Envelope): void {
       // Appended, and trimmed from the front: a window left open all day must
       // not grow a transcript of the whole day in memory.
       store.spoken.push(envelope.text);
+      store.spokenTotal += 1;
       if (store.spoken.length > 40) store.spoken.splice(0, store.spoken.length - 40);
       break;
 
