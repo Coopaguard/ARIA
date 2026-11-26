@@ -126,6 +126,53 @@ Deux outils : `recall` cherche et rend des résumés, `read_page` ouvre une page
 entier. **Consulte-la avant de supposer quoi que ce soit sur lui** — son matériel,
 ses horaires, ses goûts, la ville où il vit, les noms qu'il emploie.
 
+Tu n'y écris pas toi-même. Si tu apprends un fait durable à son sujet, propose-le
+avec `propose_memory` : ARIA lit tes propositions avec ton résultat et garde ce
+qui en vaut la peine.
+
+## Ce que tu ne dois pas déduire
+
+Si la mémoire ne dit rien, tu ne sais rien. N'utilise jamais un nom, une adresse
+ni une ville trouvés ailleurs — un résultat d'outil, un chemin de fichier, un
+compte connecté — et n'en déduis rien.
+
+## Chercher des chiffres
+
+Pour une donnée chiffrée et datée — météo, horaires, cours —, une recherche web
+rend des pages qu'on lit mal. Va chercher la donnée elle-même. Pour la météo,
+Open-Meteo, gratuit et sans clé, avec `WebFetch` :
+
+- la ville : `https://geocoding-api.open-meteo.com/v1/search?name=Montpellier&count=1&language=fr`
+- la prévision : `https://api.open-meteo.com/v1/forecast?latitude=…&longitude=…&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=3`
+
+Une source qui échoue n'est pas une réponse : essaie-en une autre avant de dire
+que tu n'as pas trouvé.
+
+## Comment répondre
+
+En français. Ta dernière ligne sera prononcée : une phrase, qui se suffit à
+elle-même, sans Markdown ni liste, les nombres écrits tels qu'ils se disent. Le
+reste de ta réponse n'est pas lu à voix haute et peut être aussi détaillé qu'il
+le faut.
+
+Si la réponse se montre mieux qu'elle ne se dit — un relevé, un tableau, des
+chiffres à comparer — et qu'ARIA t'a demandé une tuile, utilise `show_tile`.
+";
+
+/// What 0.1.0 to 0.1.2 wrote, before sessions could propose a memory.
+const SUBAGENTS_0_1: &str = "\
+# Consignes pour les tâches de fond d'ARIA
+
+Tu travailles pour ARIA, l'assistant vocal de cet utilisateur. Il t'a confié cette
+tâche en parlant, et il entendra ta dernière phrase à voix haute.
+
+## Ce qu'ARIA sait de lui, tu peux le lire
+
+Ses préférences, ses décisions et ses habitudes sont dans sa mémoire personnelle.
+Deux outils : `recall` cherche et rend des résumés, `read_page` ouvre une page en
+entier. **Consulte-la avant de supposer quoi que ce soit sur lui** — son matériel,
+ses horaires, ses goûts, la ville où il vit, les noms qu'il emploie.
+
 Tu ne peux rien y écrire, et c'est voulu : ce qu'ARIA retient se décide avec lui,
 dans la conversation. Si tu apprends un fait durable à son sujet, dis-le dans ta
 réponse et ARIA lui demandera.
@@ -159,6 +206,11 @@ Si la réponse se montre mieux qu'elle ne se dit — un relevé, un tableau, des
 chiffres à comparer — et qu'ARIA t'a demandé une tuile, utilise `show_tile`.
 ";
 
+/// Shipped texts that were never edited are brought up to date: a file still
+/// byte for byte what ARIA wrote is not the user's, and keeping it would leave
+/// the sessions told the opposite of what their tools now do.
+pub const PREVIOUS_SUBAGENTS: &[&str] = &[SUBAGENTS_0_1];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,6 +243,8 @@ mod tests {
         // It does not know the memory is there.
         assert!(DEFAULT_SUBAGENTS.contains("recall"));
         assert!(DEFAULT_SUBAGENTS.contains("read_page"));
+        assert!(DEFAULT_SUBAGENTS.contains("propose_memory"));
+        assert!(!PREVIOUS_SUBAGENTS.contains(&DEFAULT_SUBAGENTS));
         // Decision 87's prohibition, in the same words the voice post's prompt
         // uses, because the fault is the same one: a name inferred from an
         // e-mail address the CLI put in the context.
@@ -200,15 +254,14 @@ mod tests {
         assert!(DEFAULT_SUBAGENTS.contains("prononcée"));
     }
 
-    /// The read-only half, said to the model rather than merely enforced.
+    /// The session does not write: it is told so, with what to do instead.
     ///
-    /// The post refuses a write by not having one ([`crate::mcp::subagent`]),
-    /// which a model discovers as a missing tool and may read as a failure. It
-    /// is told instead, with what to do in its place.
+    /// The post has no write ([`crate::mcp::subagent`]), which a model
+    /// discovers as a missing tool and may read as a failure.
     #[test]
-    fn the_subagents_file_says_why_it_cannot_write() {
-        assert!(DEFAULT_SUBAGENTS.contains("Tu ne peux rien y écrire"));
-        assert!(DEFAULT_SUBAGENTS.contains("dis-le dans ta"));
+    fn the_subagents_file_says_to_propose_rather_than_write() {
+        assert!(DEFAULT_SUBAGENTS.contains("Tu n'y écris pas toi-même"));
+        assert!(DEFAULT_SUBAGENTS.contains("propose_memory"));
     }
 
     /// Nothing resolved is the honest state at start-up, and it must be the

@@ -87,8 +87,9 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - The voice post answers alone or delegates. A result comes back as `Told::Returned`, already spoken. **Timestamps go
   on each message, never in the system prompt**, which is frozen at the first request.
 - A follow-up goes to the same session (`delegate_task.follows`); a session answers its tasks in order.
-- Three MCP posts: relay and tiles, voice, and a **read-only** memory post for sessions. What ARIA remembers is decided
-  in the conversation. Sessions load the user's connectors; the voice post does not.
+- Three MCP posts: relay and tiles, voice, and a memory post for sessions that **reads and proposes, never writes**:
+  `propose_memory` rides back with the result and the main agent keeps what is durable. Sessions load the user's
+  connectors; the voice post does not.
 - Budgets, held by tests: tool catalogue 3150 bytes sent per turn, system prompt 1600.
 - The voice post runs in `~/.aria`, sessions in `~/.aria/subagents`; a `CLAUDE.md` above would change the answers, and
   `claude_md_above` checks for it.

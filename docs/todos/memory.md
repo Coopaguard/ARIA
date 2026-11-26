@@ -1,6 +1,6 @@
 # Finish the long-term memory
 
-Pages, index, vectors, `recall`, `deep_recall` and the read-only post for sessions exist.
+Pages, index, vectors, `recall`, `deep_recall` and the sessions' post (read, and propose a fact to the main agent) exist.
 
 - Hook `Core::memory_vectorise` to a silence.
 - Give the lint a command: `index::broken_links`, orphan pages, stale or deprecated ones.

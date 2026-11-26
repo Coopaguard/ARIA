@@ -231,6 +231,9 @@ pub struct Core {
     /// token: one token, one audience. This one authorises *starting work on
     /// the machine*, so the window — a web page — has no business holding it.
     agent_token: String,
+    /// What delegated sessions proposed to remember, until their result is
+    /// handed to the main agent. See [`agent::delegation::MemoryProposal`].
+    proposals: Mutex<std::collections::HashMap<SessionId, Vec<agent::delegation::MemoryProposal>>>,
 }
 
 impl Core {
@@ -257,6 +260,7 @@ impl Core {
             conversation: Mutex::new(None),
             home: Mutex::new(agent::instructions::Home::default()),
             agent_token: uuid::Uuid::new_v4().to_string(),
+            proposals: Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -982,6 +986,30 @@ impl Core {
     /// One page in full, by id or alias. For a reader, never for the voice.
     pub fn memory_read(&self, page: &str) -> Result<String, store::MemoryError> {
         self.with_memory(|memory| memory.read(page))
+    }
+
+    /// A delegated session proposes a fact. `false` once it has proposed
+    /// [`agent::delegation::MAX_PROPOSALS`].
+    pub fn propose_memory(
+        &self,
+        session: SessionId,
+        proposal: agent::delegation::MemoryProposal,
+    ) -> bool {
+        let mut all = self.proposals.lock().unwrap();
+        let mine = all.entry(session).or_default();
+        if mine.len() >= agent::delegation::MAX_PROPOSALS {
+            return false;
+        }
+        mine.push(proposal);
+        true
+    }
+
+    /// The session's proposals, handed over once.
+    pub fn take_memory_proposals(
+        &self,
+        session: SessionId,
+    ) -> Vec<agent::delegation::MemoryProposal> {
+        self.proposals.lock().unwrap().remove(&session).unwrap_or_default()
     }
 
     // --------------------------------------------------- the conversations

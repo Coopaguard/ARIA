@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 use aria_core::Core;
 use aria_core::agent::instructions::{
-    DEFAULT_MAIN, DEFAULT_SUBAGENTS, DIR, Home, MAIN_FILE, SUBAGENTS_DIR,
+    DEFAULT_MAIN, DEFAULT_SUBAGENTS, DIR, Home, MAIN_FILE, PREVIOUS_SUBAGENTS, SUBAGENTS_DIR,
 };
 use tauri::{AppHandle, Manager};
 
@@ -45,7 +45,9 @@ pub fn attach(app: &AppHandle, core: &Core) {
     let subagents = home.join(SUBAGENTS_DIR);
     let found = Home {
         main: ensure(&home.join(MAIN_FILE), DEFAULT_MAIN),
-        subagents: ensure(&subagents.join(MAIN_FILE), DEFAULT_SUBAGENTS),
+        subagents: ensure(&subagents.join(MAIN_FILE), DEFAULT_SUBAGENTS).inspect(|path| {
+            refresh(path, DEFAULT_SUBAGENTS, PREVIOUS_SUBAGENTS);
+        }),
         // Decision 108: where each agent runs. Resolved in the same call as
         // the files because it is the same folder and the same reading of
         // `~` — and offered only once it is a directory that exists, since a
@@ -86,6 +88,21 @@ fn usable(dir: &Path) -> Option<PathBuf> {
 ///
 /// Returns `None` rather than propagating, because every failure here has the
 /// same consequence and it is not an error the user can act on at start-up.
+/// Replace a file that is still exactly a former shipped text. One the user
+/// touched, even by a character, is theirs and stays.
+fn refresh(path: &Path, default: &str, previous: &[&str]) {
+    let Ok(current) = std::fs::read_to_string(path) else {
+        return;
+    };
+    if !previous.iter().any(|old| current.replace("\r\n", "\n") == *old) {
+        return;
+    }
+    match std::fs::write(path, default) {
+        Ok(()) => tracing::info!("consignes mises à jour : {}", path.display()),
+        Err(e) => tracing::warn!("{} non mis à jour : {e}", path.display()),
+    }
+}
+
 fn ensure(path: &Path, default: &str) -> Option<PathBuf> {
     if path.is_file() {
         return Some(path.to_path_buf());
@@ -131,6 +148,23 @@ mod tests {
 
         assert_eq!(found, path);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_SUBAGENTS);
+    }
+
+    /// A file still exactly as a former version wrote it is brought up to date;
+    /// one the user changed is not.
+    #[test]
+    fn only_an_untouched_former_text_is_refreshed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join(MAIN_FILE);
+
+        std::fs::write(&path, PREVIOUS_SUBAGENTS[0]).unwrap();
+        refresh(&path, DEFAULT_SUBAGENTS, PREVIOUS_SUBAGENTS);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_SUBAGENTS);
+
+        let mine = format!("{}\nMa propre consigne.\n", PREVIOUS_SUBAGENTS[0]);
+        std::fs::write(&path, &mine).unwrap();
+        refresh(&path, DEFAULT_SUBAGENTS, PREVIOUS_SUBAGENTS);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), mine);
     }
 
     /// And an existing one is left exactly as the user wrote it. This is the
