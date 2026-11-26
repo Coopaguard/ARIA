@@ -1397,8 +1397,15 @@ impl Core {
                 // different rooms: the clock catches one that falls quiet, the
                 // count catches one that never does. Both land in the resting
                 // mode, never in off.
+                let talking = matches!(
+                    core.voice_state(),
+                    VoiceState::Speaking | VoiceState::Thinking
+                );
                 let (idle, talked_past) = {
-                    let audio = core.audio.lock().unwrap();
+                    let mut audio = core.audio.lock().unwrap();
+                    if talking {
+                        audio.still_talking();
+                    }
                     (audio.idle_expired(), audio.talked_past_its_welcome())
                 };
                 if talked_past {
