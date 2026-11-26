@@ -99,7 +99,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 - Cutting ARIA off has two signals, and the fast one **never cuts on energy alone**: until the echo gate has learned
   the room, it cuts nothing.
 - ARIA does not hear itself: `echo::SpokenLog` vetoes its own words, except when the coupling is `Absent`. The margin is
-  8 dB, measured. The veto comes **before** the name, enforced by the type `voice::Allowed`.
+  8 dB, measured. The veto comes **before** the name, enforced by the type `voice::Allowed`. Whatever the coupling, a
+  turn that **opens** with ARIA's last minute of speech has that opening cut (`SpokenLog::strip`), never the rest.
 - An interruption stops the CLI's turn, not a turn that called a tool, and not delegated sessions. STOP cuts everything.
 - A breath is not a voice: cutting needs voiced frames, and a turn needs words.
 - End-of-turn patience slows down, and never waits forever.

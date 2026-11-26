@@ -17,8 +17,12 @@ released.
 - [x] **Delegated sessions can add to the memory, under the main agent's supervision.** A session *proposes* a fact;
       the proposals come back with its result, and the main agent keeps the ones worth keeping. Today the memory is
       read-only to them, and the user had to insist before the main agent wrote what they had found.
-- [ ] **Delegation is not always used.** The main agent sometimes works on a request itself instead of delegating it,
-      which makes it slow. To be analysed on a complete trace of an exchange.
+- [x] **Delegation is not always used.** Analysed on a 50-minute trace: thirteen tasks were delegated, and the main
+      agent answered in 1.5 to 5 s. Twice it asked the user for a detail a session could have found; its prompt now
+      says to delegate anyway. The slowness is the sessions: about 7 s to start, with every connector loaded.
+- [x] **ARIA acted on its own words.** On a headset, turns opened with ARIA's last answer, mangled, and three were acted
+      on. The opening that repeats ARIA is now cut, whatever the echo gate concluded; what the user adds is kept.
+- [ ] **Session start-up.** About 7 s per delegated task, most of it loading connectors. To measure before choosing.
 - [x] **Named mode listens for 30 s after an answer**, counted from when ARIA stops talking. It was three minutes.
 - [x] **Updates install themselves at start.** A newer version found when ARIA starts is installed without asking;
       one found later, every six hours, is still only offered, so a running task is not cut.
