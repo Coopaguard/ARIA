@@ -31,7 +31,7 @@ import {
   toggleAudio,
 } from "./lib/bridge";
 import { LOAD_LABEL, MODE_LABEL, type Profile } from "./lib/contract";
-import { liveSessions, store } from "./lib/store";
+import { exchange, liveSessions, markAsked, store } from "./lib/store";
 
 const leftOpen = ref(false);
 /** Which tab of the left-hand menu is showing. Held here so it can be switched. */
@@ -172,7 +172,10 @@ const transcriptPartial = computed(() => store.heard !== null && !store.heard.fi
  * When the TTS lands this stays, because a reconnecting window has to be able
  * to see what was said and audio cannot be re-read.
  */
-const said = computed(() => store.spoken.slice(-2));
+const around = computed(exchange);
+const said = computed(() => around.value.after);
+/** ARIA's line before the user's sentence: above it, faded (2026-11-26). */
+const before = computed(() => (transcript.value ? around.value.before : null));
 
 /** Which of ARIA's lines was just copied, for the « copié » acknowledgement. */
 const copied = ref<number | null>(null);
@@ -269,6 +272,7 @@ const status = computed(() => {
  * source of truth about what was said is the thing this design avoids.
  */
 async function send(text: string) {
+  markAsked();
   typed.value = text;
   store.notice = null;
   try {
@@ -300,6 +304,13 @@ async function send(text: string) {
        behind a toggle, because it cuts the work as well as the ear. -->
 
   <main class="stage" :data-left="leftOpen ? 'on' : 'off'">
+    <!-- The exchange in the order it happened (2026-11-26): ARIA's line before
+         the user's sentence, faded, then the sentence, then what ARIA said
+         since. The sentence used to sit above both of ARIA's lines, even the
+         one that came before it. -->
+    <div class="exchange">
+    <p v-if="before" class="before" :title="before">{{ before }}</p>
+
     <!-- One line: what was heard is there to be checked at a glance, and the
          whole of it is in the hover text when it runs long. -->
     <div
@@ -340,6 +351,7 @@ async function send(text: string) {
           </svg>
         </button>
       </p>
+    </div>
     </div>
 
     <div class="orb-wrap">
@@ -430,14 +442,36 @@ async function send(text: string) {
 /* ARIA's own voice: amber, where the user's transcript is cyan. The palette
    already carries that split — the orb is amber when ARIA acts — so the colour
    says who is talking without a label. */
-.said {
+/* Before, the sentence, after: one column, so a line before the sentence pushes
+   the rest down instead of covering it. */
+.exchange {
   position: absolute;
-  top: 112px;
+  top: 72px;
   left: 50%;
   transform: translateX(-50%);
   width: min(620px, 54vw);
-  text-align: center;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ARIA's line before the sentence: as faded as the old line under the answer. */
+.exchange .before {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--dim);
+  opacity: 0.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.said {
+  text-align: center;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -505,11 +539,6 @@ async function send(text: string) {
 }
 
 .transcript {
-  position: absolute;
-  top: 72px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(620px, 54vw);
   text-align: center;
   font-size: 15.5px;
   font-weight: 500;
