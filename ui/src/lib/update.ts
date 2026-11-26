@@ -1,9 +1,12 @@
 /**
  * Updates from GitHub releases — the window side of `app/src/update.rs`.
  *
- * Checked at start and then every six hours: ARIA lives for days, so a check
- * at start alone would wait for a restart nobody makes. A failed check shows
- * nothing; only a real offer does.
+ * At start, a newer version is installed without asking (2026-11-26): nothing
+ * is under way yet, so nothing is cut. Afterwards, every six hours — ARIA lives
+ * for days — a newer version is only offered, since a conversation or a task
+ * may be running. A failed check shows nothing; only a real offer does.
+ *
+ * Not in a development build: it would replace itself with the release.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -64,6 +67,8 @@ let started = false;
 export function watchUpdates(): void {
   if (started) return;
   started = true;
-  void checkUpdate();
+  void checkUpdate().then((found) => {
+    if (found && !import.meta.env.DEV) void installUpdate();
+  });
   setInterval(() => void checkUpdate(), EVERY);
 }

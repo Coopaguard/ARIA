@@ -1,7 +1,8 @@
 //! Updates, from GitHub releases.
 //!
-//! The window asks whether a newer release exists; if so it offers it, and the
-//! install happens here. `latest.json` is published on the latest GitHub
+//! The window asks whether a newer release exists; at start it installs it
+//! at once, later it offers it (`ui/src/lib/update.ts`). The install happens
+//! here. `latest.json` is published on the latest GitHub
 //! release by `.github/workflows/release.yml`; every package in it is signed,
 //! and the plugin refuses one whose signature does not match the public key in
 //! `tauri.conf.json`.

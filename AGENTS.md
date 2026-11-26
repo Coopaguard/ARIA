@@ -147,7 +147,8 @@ installer and `latest.json`, adds `SHA256SUMS` and the attestation, then publish
 - **Signing key** (minisign): `~/.tauri/aria.key`, no password, and the secret `TAURI_SIGNING_PRIVATE_KEY`; the public
   half is in `app/tauri.conf.json`. Losing it ends updates everywhere; leaking it lets someone sign a false one.
 - A local `npm run build` signs too: `$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content ~/.tauri/aria.key -Raw`.
-- The application checks at start and every six hours, **offers** the update, verifies its signature and restarts.
+- The application checks at start and **installs** a newer version at once; the checks every six hours after only
+  **offer** it, since a task may be running. It verifies the signature and restarts.
 - Shipped: the program, `resources/wake`, `resources/voices`, `resources/phonon`, ONNX Runtime. Downloaded: models from
   Hugging Face, the French voice model from our release **`models-1`**, CUDA (1.3 GB, when enabled). Installed by the
   user: Claude Code, `llama-server`.

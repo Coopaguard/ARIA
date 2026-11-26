@@ -20,5 +20,7 @@ released.
 - [ ] **Delegation is not always used.** The main agent sometimes works on a request itself instead of delegating it,
       which makes it slow. To be analysed on a complete trace of an exchange.
 - [x] **Named mode listens for 30 s after an answer**, counted from when ARIA stops talking. It was three minutes.
+- [x] **Updates install themselves at start.** A newer version found when ARIA starts is installed without asking;
+      one found later, every six hours, is still only offered, so a running task is not cut.
 - [x] **Onboarding, quickly: testers are waiting.** The five-step first-run screen (`FirstRun.vue`) existed but was
       never mounted, so a new user landed on the orb with no guidance. Mounted; to be seen on a real first start.
