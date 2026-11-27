@@ -226,6 +226,28 @@ pub enum Event {
     /// the difference without parsing a summary.
     #[serde(rename = "task.error")]
     TaskError { session: SessionId, message: String },
+
+    /// Part of ARIA stopped working, in words for the user — or, with `None`,
+    /// works again.
+    ///
+    /// Added on 2026-11-27, after a day where ARIA was deaf and its agent
+    /// logged out, and the window said neither: both were only in the log.
+    #[serde(rename = "fault")]
+    Fault {
+        part: Part,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
+}
+
+/// What can stop working on its own, for [`Event::Fault`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Part {
+    /// The ear: the microphone or the model that transcribes it.
+    Hearing,
+    /// The main agent, which answers.
+    Agent,
 }
 
 /// An event with its position in the stream, and when it happened.

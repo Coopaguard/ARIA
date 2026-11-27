@@ -20,8 +20,9 @@ use std::sync::{Arc, Mutex};
 
 use aria_core::Core;
 use aria_core::agent::local::{LocalConfig, LocalModel};
-use aria_core::agent::pilot::Pilot;
+use aria_core::agent::pilot::{Pilot, agent_fault};
 use aria_core::audio::{Ear, Load};
+use aria_core::events::Part;
 use tauri::{AppHandle, Manager};
 
 /// The main agent, when there is one.
@@ -124,10 +125,20 @@ pub async fn start(app: AppHandle, core: Arc<Core>) {
     let mut config =
         aria_core::agent::pilot::config_with(&core, &agent.command, &model, &agent.persona);
     config.skills = skills;
-    match Pilot::start(core, config).await {
-        Ok(pilot) => app.state::<Running>().replace(Some(pilot)),
+    let started = Pilot::start(Arc::clone(&core), config).await;
+    installed(&app, &core, started, "agent principal indisponible");
+}
+
+/// Hand a started agent to [`Running`], or say on screen why there is none.
+fn installed(app: &AppHandle, core: &Core, started: anyhow::Result<Pilot>, failed: &str) {
+    match started {
+        Ok(pilot) => {
+            core.set_fault(Part::Agent, None);
+            app.state::<Running>().replace(Some(pilot));
+        }
         Err(e) => {
-            tracing::error!("agent principal indisponible : {e:#}");
+            tracing::error!("{failed} : {e:#}");
+            core.set_fault(Part::Agent, Some(agent_fault(&format!("{e:#}"))));
             app.state::<Running>().replace(None);
         }
     }
@@ -185,6 +196,7 @@ async fn start_local(
                 ms = started.elapsed().as_millis(),
                 "modèle local chargé et chaud"
             );
+            core.set_fault(Part::Agent, None);
             app.state::<Running>().replace(Some(pilot));
         }
         Err(e) if still_wanted => {
@@ -229,13 +241,8 @@ async fn fall_back_to_cli(
     let mut config =
         aria_core::agent::pilot::config_with(&core, &agent.command, &model_id, &agent.persona);
     config.skills = skills_line(&app, &core).await;
-    match Pilot::start(core, config).await {
-        Ok(pilot) => app.state::<Running>().replace(Some(pilot)),
-        Err(e) => {
-            tracing::error!("secours Claude Code indisponible lui aussi : {e:#}");
-            app.state::<Running>().replace(None);
-        }
-    }
+    let started = Pilot::start(Arc::clone(&core), config).await;
+    installed(&app, &core, started, "secours Claude Code indisponible lui aussi");
 }
 
 async fn load_local(

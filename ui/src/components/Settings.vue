@@ -134,9 +134,11 @@ const cardLine = computed(() => {
   if (!c) return "";
   if (!c.vendor) return "Aucune carte reconnue : DirectML est utilisé.";
   const found = c.name || VENDOR_LABEL[c.vendor];
-  // AMD: ROCm has no Windows build (decision 131).
+  // AMD: ROCm has no Windows build (decision 131). Intel: OpenVINO refuses
+  // Parakeet (2026-11-27, `aria_voice::gpu::Stack::available`).
   if (c.native && c.native !== c.runs) {
-    return `${found} — ${GPU_STACK_LABEL[c.native]} n'existe pas sous Windows : DirectML.`;
+    const why = c.native === "oneapi" ? "ne lit pas encore le modèle d'écoute" : "n'existe pas sous Windows";
+    return `${found} — ${GPU_STACK_LABEL[c.native]} ${why} : DirectML.`;
   }
   if (c.loaded === c.runs) return `${found} — ${GPU_STACK_LABEL[c.runs]}.`;
   // The maker's runtime is downloaded on demand and loaded at the next start.
