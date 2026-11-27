@@ -28,16 +28,17 @@ import {
   getConfig,
   restartAgent,
   saveConfig,
+  secretAsks,
   sayToAgent,
   stopAll,
   toggleAudio,
 } from "./lib/bridge";
 import { LOAD_LABEL, MODE_LABEL, type Profile } from "./lib/contract";
-import { exchange, liveSessions, markAsked, store } from "./lib/store";
+import { applySecretAsks, exchange, liveSessions, markAsked, store } from "./lib/store";
 
 const leftOpen = ref(false);
 /** Which tab of the left-hand menu is showing. Held here so it can be switched. */
-const leftTab = ref<"threads" | "sessions" | "settings" | "scenarios">("threads");
+const leftTab = ref<"threads" | "sessions" | "hooks" | "settings" | "scenarios">("threads");
 
 /**
  * A permission request opens the menu, on the sessions tab.
@@ -59,6 +60,21 @@ watch(
   },
   { immediate: true },
 );
+/**
+ * A secret asked for by a session opens the menu on the hooks tab, for the
+ * same reason a permission request does: the session waits until it is typed.
+ */
+watch(
+  () => store.secretAsks.length,
+  (now, before) => {
+    if (now > (before ?? 0)) {
+      leftOpen.value = true;
+      leftTab.value = "hooks";
+    }
+  },
+);
+onMounted(async () => applySecretAsks(await secretAsks()));
+
 /** What was typed, until there is a turn engine to hand it to. */
 const typed = ref<string | null>(null);
 

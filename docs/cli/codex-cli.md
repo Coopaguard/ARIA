@@ -34,6 +34,16 @@ Sources: [repository](https://github.com/openai/codex) (Apache-2.0, 0.172.0),
 In `~/.codex/config.toml`, or a **trusted** project's `.codex/config.toml`. A server marked `required = true` that fails
 makes `exec` exit with an error. Hooks see our tools as `mcp__server__tool`, the spelling of Claude Code.
 
+## Asking the user, read on 2026-11-27
+
+`request_user_input`: one to three questions with options, answered through the app server. **Plan mode only**, unless
+the feature flag `default_mode_request_user_input`; the instructions of the default mode still call it unavailable.
+Multiple choice was added by a client (t3code), not documented. MCP elicitations, single or multiple choice, go through
+the same queue; under `exec`, MCP calls were reported cancelled for want of stdin. Sources:
+[app server](https://developers.openai.com/codex/app-server),
+[Plan mode only](https://community.openai.com/t/feature-request-allow-request-user-input-in-default-mode/1395392),
+[the flag](https://github.com/pingdotgg/t3code/issues/5282), [exec](https://github.com/openai/codex/issues/24135).
+
 ## Other
 
 - Events of `exec --json`: `thread.started`, `turn.started`, `turn.completed` (with `usage`), `turn.failed`, `item.*`, `error`.

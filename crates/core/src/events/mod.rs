@@ -161,6 +161,33 @@ pub enum Event {
     #[serde(rename = "tile.updated")]
     TileUpdated { uri: String },
 
+    /// A hook was added, run, validated, switched or deleted: the tab reads
+    /// the list again. The list itself is not carried — it reads the folder.
+    #[serde(rename = "hooks.changed")]
+    HooksChanged,
+
+    /// A hook's news reached the user, said or only shown.
+    #[serde(rename = "hook.event")]
+    HookEvent {
+        hook: String,
+        name: String,
+        why: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        say: Option<String>,
+        how: crate::hooks::inbox::How,
+        /// How many runs were merged into it.
+        count: usize,
+    },
+
+    /// A session asks the user for a hook's secret. The window draws its own
+    /// form. Never a value: see `hooks::secrets`.
+    #[serde(rename = "secret.asked")]
+    SecretAsked { ask: crate::hooks::secrets::Ask },
+
+    /// The ask was answered or cancelled: the form goes.
+    #[serde(rename = "secret.closed")]
+    SecretClosed { id: String, saved: bool },
+
     /// A tile is available to render. Replaces §4's `preview.ready`.
     #[serde(rename = "tile.ready")]
     TileReady {

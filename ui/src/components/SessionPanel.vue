@@ -378,6 +378,9 @@ async function deny(request: PermissionRequest) {
   font-size: 11px;
   color: #a9cbe4;
   line-height: 1.5;
+  /* A hook's validation card carries its whole script, lines and all. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-all;
 }
 .ask.open .more {

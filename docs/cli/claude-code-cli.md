@@ -1,6 +1,6 @@
 # Claude Code CLI
 
-Verified facts about what the CLI does. **§2 to §7 were read from the official documentation on 2026-10-20; §8 to §11
+Verified facts about what the CLI does. **§2 to §7 were read from the official documentation on 2026-10-20; §8 to §12
 were measured by running it.** The CLI moves fast: check again, and re-date, before relying on them.
 
 Sources: [permission modes](https://code.claude.com/docs/en/permission-modes),
@@ -359,6 +359,9 @@ The first utterance sent to a new process is therefore answered by a model **wit
 that it cannot look up the weather. Waiting before speaking does not help: the connection starts with the first message.
 Hence a **warm-up turn**, whose answer is thrown away.
 
+**No longer true in 2.1.323** ([§12](#12-a-session-kept-waiting-measured-on-2026-11-27-cli-21323)): the servers connect
+without a message, in about 1.5 s. A message sent at once still finds them `pending`.
+
 ### What `init` can say, and when
 
 At the first turn it names no MCP tool; from the second, the list is right. It checks both ways: **no more**, since
@@ -381,3 +384,35 @@ spoken : « Il fera vingt-trois degrés ce matin et vingt-sept degrés cet aprè
 ```
 
 The model delegated by itself, and the spoken sentence is the session's, word for word, figures included.
+
+## 12. A session kept waiting, **measured** on 2026-11-27, CLI 2.1.323
+
+`claude -p --input-format stream-json --output-format stream-json --verbose`, an empty folder, the user's claude.ai
+connectors, nothing sent.
+
+| | Waiting, no message | After one turn |
+|---|---|---|
+| Memory | 226 MB working set, 425 MB private; one process, the connectors being remote | 240 MB |
+| Processor | 1.2 s per minute, 2 % of a core | the same |
+| Quota | **none**: no request leaves | 41 000 tokens, 27 000 read from cache, for « OK » |
+
+**The MCP servers connect without a message.** Sent at once, the first message gets `init` at 0.6 s with 29 tools and
+the servers `pending`; sent after 1.5 s or later, 73 tools, the servers `connected` (two `needs-auth`), and the turn
+takes 0.8 s instead of 1.4. `init` still comes only after the first message.
+
+So a delegated session launched and spoken to at once starts its first turn **without the user's connectors**: ARIA's
+log of the same day shows 36 tools at `init`, ARIA's own and the CLI's. Whether the CLI adds them later in the turn
+was not looked at.
+
+## 13. Asking the user, read on 2026-11-27
+
+`AskUserQuestion`: one to four questions, each with options, single or multiple choice. In the SDK it reaches
+`canUseTool` and the answers go back in `updatedInput`; through `--permission-prompt-tool` it arrives as an
+authorisation request, raw. Reported in May 2026 and closed in July: under `-p` the model went on assuming instead of
+waiting. Not run.
+
+MCP elicitation in form mode since 2.1.76; 2.1.117 fixed requests cancelled by themselves in print and SDK mode.
+
+Sources: [user input](https://code.claude.com/docs/en/agent-sdk/user-input),
+[issue 64265](https://claudeissues.com/issue/64265-bug-headless-mode-p-output-format-stream-json-breaks-askuserquestion-handling-mo),
+[changelog](https://code.claude.com/docs/en/changelog).

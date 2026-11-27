@@ -1,6 +1,7 @@
 # Cadence: scheduled tasks and watch
 
-ARIA works without being asked. No code yet; `dontAsk` is reserved for these sessions.
+ARIA works without being asked. No code yet; `dontAsk` is reserved for these sessions. What remains here is the
+work a **model** does on a schedule; a check that only needs a script is a [hook](hooks.md).
 
 **Rhythms**: time, interval, event (a file arrives, a repository changes), window. **First ones**: morning brief,
 topic watch, machine health, folder tidying, project state, memory consolidation, weekly review.

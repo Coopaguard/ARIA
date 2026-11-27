@@ -292,9 +292,20 @@ async fn a_session_is_served_the_tile_tool_next_to_the_relay() {
     let listed = client.list_all_tools().await.expect("tools/list answers");
     let mut names: Vec<&str> = listed.iter().map(|tool| tool.name.as_ref()).collect();
     names.sort_unstable();
+    // The hooks' five since 2026-11-28: managed by a session, since the voice
+    // post's catalogue has no room for them (`mcp::hooks`).
     assert_eq!(
         names,
-        vec!["approve", "refresh_tile", aria_core::tiles::SHOW_TILE]
+        vec![
+            "approve",
+            "ask_secret",
+            "hook_delete",
+            "hook_set_enabled",
+            "hook_trial",
+            "hooks_list",
+            "refresh_tile",
+            aria_core::tiles::SHOW_TILE
+        ]
     );
 
     let _ = client.cancel().await;

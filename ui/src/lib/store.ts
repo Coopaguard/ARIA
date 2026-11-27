@@ -19,6 +19,8 @@ import type {
   ActivityStep,
   AudioMode,
   Download,
+  HookNews,
+  SecretAsk,
   Envelope,
   Loading,
   ModeTrigger,
@@ -120,6 +122,12 @@ export interface Store {
    * Since 2026-11-27: both used to fail in the log only.
    */
   faults: Partial<Record<Part, string>>;
+  /** Bumped by `hooks.changed`: the hooks tab reads its list again. */
+  hooksVersion: number;
+  /** The hooks' last news, newest last. Shown, said or not. */
+  hookNews: HookNews[];
+  /** Secrets sessions are waiting for. Drawn by ARIA's own form, never a tile. */
+  secretAsks: SecretAsk[];
 }
 
 export const store = reactive<Store>({
@@ -147,6 +155,9 @@ export const store = reactive<Store>({
   level: 0,
   notice: null,
   faults: {},
+  hooksVersion: 0,
+  hookNews: [],
+  secretAsks: [],
 });
 
 /** Replace everything with a snapshot. Used at start-up, and after a gap. */
@@ -177,6 +188,10 @@ export function applySnapshot(snapshot: Snapshot): void {
 }
 
 /** The user starts a sentence, spoken or typed. */
+export function applySecretAsks(asks: SecretAsk[]): void {
+  store.secretAsks = [...asks];
+}
+
 export function markAsked() {
   store.askedAt = store.spokenTotal;
 }
@@ -290,6 +305,27 @@ export function applyEvent(envelope: Envelope): void {
       // cadres : le magasin ne connaît que des données. Un compteur suffit —
       // elle le surveille et relit.
       store.tileRefresh = { uri: envelope.uri, at: store.tileRefresh.at + 1 };
+      break;
+
+    case "hooks.changed":
+      store.hooksVersion += 1;
+      break;
+
+    case "hook.event": {
+      const { type: _type, ...news } = envelope;
+      store.hookNews.push(news);
+      if (store.hookNews.length > 20) store.hookNews.splice(0, store.hookNews.length - 20);
+      break;
+    }
+
+    case "secret.asked":
+      if (!store.secretAsks.some((ask) => ask.id === envelope.ask.id)) {
+        store.secretAsks.push(envelope.ask);
+      }
+      break;
+
+    case "secret.closed":
+      store.secretAsks = store.secretAsks.filter((ask) => ask.id !== envelope.id);
       break;
 
     case "transcript.partial":

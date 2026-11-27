@@ -11,8 +11,7 @@ Sources: [repository](https://github.com/google-gemini/gemini-cli) (Apache-2.0, 
 [policy engine](https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/policy-engine.md).
 
 > **Choose the target first.** Since 2026-06-18, free individual access and Google AI Pro / Ultra moved to
-> [Antigravity CLI](https://antigravity.google/product/antigravity-cli) (`agy`), which the README also names for the
-> newest models. It was not read here.
+> [Antigravity CLI](antigravity-cli.md) (`agy`); this page holds for enterprise licences and paid API keys.
 
 ## Two ways to drive it
 
@@ -39,6 +38,14 @@ The CLI reference still lists `--experimental-acp`; the ACP page says `--acp`. E
 `mcpServers` in `settings.json` (user or project), and in ACP mode the client gives its server at the handshake. In a
 permission request, `toolCall._meta['gemini-cli'].mcp` carries `server_name` and `tool_name`: no name to parse.
 `trust: true` on a server skips every confirmation: never set it. `--allowed-mcp-server-names` only restricts.
+
+## Asking the user, read on 2026-11-27
+
+`ask_user`: one to four questions, of type `choice` (the default, `multiSelect` for several), text, or yes/no, each
+option with a label and a description. **Off under ACP** unless the client advertises
+`clientCapabilities._meta.geminiCli.hostInput` with `requestUserInput: true`, Gemini's own extension; read from a
+mirrored pull request. No answer path under `-p`. Sources: [ask_user](https://geminicli.com/docs/tools/ask-user/),
+[ACP opt-in](https://github.xiaohuzi123231346.workers.dev/google-gemini/gemini-cli/pull/24664).
 
 ## Other
 

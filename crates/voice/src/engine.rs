@@ -48,6 +48,22 @@ use parakeet_rs::{ParakeetTDT, Transcriber};
 /// because every pause re-transcribes the turn so far.
 const MAX_TURN_SECONDS: usize = 60;
 
+/// Silence kept while nobody has started speaking, before the stream starts
+/// again from nothing.
+///
+/// Since 2026-11-27. The minute above was counted from the last turn, silence
+/// included: 36 s of an empty room, then a 25 s request, and the minute ran out
+/// in the middle of it — the turn was restarted and only « La troisième. »
+/// reached the agent. Silence before the first word is worth nothing to any
+/// model, so it is not allowed to eat the minute.
+const IDLE_SECONDS: usize = 5;
+
+/// Whether the stream may start again from nothing: no word of a turn in it,
+/// and longer than [`IDLE_SECONDS`].
+fn idle_overflow(stream_len: usize, in_flight: bool) -> bool {
+    !in_flight && stream_len > IDLE_SECONDS * crate::wav::SAMPLE_RATE as usize
+}
+
 /// What the chain heard at a pause.
 #[derive(Clone, Debug)]
 pub struct Heard {
@@ -660,6 +676,18 @@ impl Engine {
     /// stream grows with silence too, and a room where nobody speaks reaches a
     /// minute on the dot, every minute. The two are told apart below.
     fn trim(&mut self) {
+        // Nothing of a turn yet: no segment open, none judged, none held, no
+        // name heard. Every offset is then in the segmenter alone, and a fresh
+        // one is the same clock started again — nothing is shifted.
+        let in_flight = self.turn_from.is_some()
+            || self.held.is_some()
+            || self.segmenter.quiet_run().is_some()
+            || !self.wakes.is_empty()
+            || self.speculated.is_some();
+        if idle_overflow(self.stream.len(), in_flight) {
+            self.end_turn();
+            return;
+        }
         if self.stream.len() > MAX_TURN_SECONDS * crate::wav::SAMPLE_RATE as usize {
             // The cheap discriminator, and it is worth the one pass: a minute
             // of silence and a minute of unbroken noise produce the same
@@ -692,6 +720,16 @@ impl Engine {
 mod tests {
     use super::*;
     use std::time::Instant;
+
+    /// The silence before a request no longer eats its minute; the words of a
+    /// turn are never dropped for it.
+    #[test]
+    fn silence_before_the_first_word_does_not_count() {
+        let second = crate::wav::SAMPLE_RATE as usize;
+        assert!(!idle_overflow(IDLE_SECONDS * second, false));
+        assert!(idle_overflow(IDLE_SECONDS * second + 1, false));
+        assert!(!idle_overflow(50 * second, true), "a turn in progress keeps its audio");
+    }
 
     /// The measurement [`Engine::warm_up`] rests on: how much of the first
     /// inference is the runtime waking up rather than the model thinking.

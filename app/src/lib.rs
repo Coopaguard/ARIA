@@ -18,6 +18,7 @@ mod config;
 mod engines;
 mod instructions;
 mod history;
+mod hooks;
 mod ipc;
 mod logs;
 mod memory;
@@ -130,6 +131,9 @@ pub fn run() {
                 // `~` is Tauri's to resolve, and the core only ever receives
                 // the paths (decision 106).
                 instructions::attach(&handle, &core);
+                // `~/.aria/hooks`, after the history: what was validated is in
+                // `aria.db`.
+                hooks::attach(&handle, &core);
 
                 if let Err(e) = shell::register_shortcut(&handle, &settings.global_shortcut) {
                     // Not fatal: the tray and the windows still work, and the
@@ -198,6 +202,11 @@ pub fn run() {
                 let watchdog = Arc::clone(&core);
                 tauri::async_runtime::spawn(async move {
                     watchdog.spawn_watchdog();
+                });
+                // The hooks: run on their rhythm, said at the right moment.
+                let hooked = Arc::clone(&core);
+                tauri::async_runtime::spawn(async move {
+                    aria_core::hooks::live::spawn(hooked);
                 });
 
                 // The listener is bound **here**, synchronously, and not inside
@@ -364,6 +373,15 @@ pub fn run() {
             ipc::measure_noise,
             ipc::stop_session,
             ipc::conversations,
+            ipc::hooks::hooks_list,
+            ipc::hooks::hook_trial_step,
+            ipc::hooks::hook_trial_answer,
+            ipc::hooks::hook_set_enabled,
+            ipc::hooks::hook_delete,
+            ipc::hooks::secret_asks,
+            ipc::hooks::secret_submit,
+            ipc::hooks::secret_cancel,
+            ipc::hooks::hook_ask_secret,
             ipc::conversation_thread,
             ipc::conversation_sessions,
             ipc::open_conversation,
@@ -413,6 +431,15 @@ pub fn run() {
             ipc::measure_noise,
             ipc::stop_session,
             ipc::conversations,
+            ipc::hooks::hooks_list,
+            ipc::hooks::hook_trial_step,
+            ipc::hooks::hook_trial_answer,
+            ipc::hooks::hook_set_enabled,
+            ipc::hooks::hook_delete,
+            ipc::hooks::secret_asks,
+            ipc::hooks::secret_submit,
+            ipc::hooks::secret_cancel,
+            ipc::hooks::hook_ask_secret,
             ipc::conversation_thread,
             ipc::conversation_sessions,
             ipc::open_conversation,

@@ -1,7 +1,7 @@
 //! Handing work to a Claude subprocess, and getting a spoken answer back.
 //!
 //! The main agent calls `delegate_task`; a session runs; its answer has to come
-//! back as **one sentence ready to be said**. Everything here exists to make
+//! back as **words ready to be said**. Everything here exists to make
 //! that last step not be a paraphrase.
 //!
 //! # Why the session says it, and not the main agent
@@ -11,8 +11,8 @@
 //! paraphrases a payload corrupts it — above all numbers, above all aloud,
 //! where nothing lets the listener check.
 //!
-//! So the delegated session is asked for the spoken sentence itself, on a
-//! marked line, and the core pushes that line **straight to the TTS**. No
+//! So the delegated session is asked for the spoken words themselves, after a
+//! marker, and the core pushes them **straight to the TTS**. No
 //! generation on the return path means no drift, no tokens and no latency.
 //!
 //! # Why a marker rather than a tool
@@ -37,12 +37,6 @@ use super::tools::DelegateTask;
 /// write by accident in the middle of an explanation.
 pub const SPOKEN_MARKER: &str = "À DIRE :";
 
-/// Longest a spoken answer may be before it stops being speakable.
-///
-/// Roughly fifteen seconds aloud. Past that the user has stopped listening and
-/// the assistant is reading a document at them.
-const MAX_SPOKEN: usize = 300;
-
 /// What a delegated session is told, on top of its task.
 ///
 /// Short on purpose: it is prepended to every delegation, so every word is
@@ -57,11 +51,14 @@ pub fn delegated_prompt(call: &DelegateTask) -> String {
         prompt.push_str("\n\n");
     }
     prompt.push_str(&call.task);
+    // A target, not a limit (2026-11-27): the user asked for none. Three films
+    // and their times fit well under it; a project's questions do not, and
+    // `DEFAULT_SUBAGENTS` says what to do then.
     prompt.push_str(
-        "\n\nQuand tu as terminé, termine ta réponse par une dernière ligne, seule, \
-         commençant par « À DIRE : » suivie d'UNE phrase en français qui sera prononcée \
-         à voix haute : pas de Markdown, pas de liste, les nombres écrits tels qu'ils se \
-         disent. Cette phrase doit se suffire à elle-même.",
+        "\n\nQuand tu as terminé, termine ta réponse par « À DIRE : » suivi de ce qui sera \
+         lu à voix haute, jusqu'à la fin : en français, pas de Markdown, pas de liste, les \
+         nombres écrits tels qu'ils se disent. Cela doit se suffire à soi-même. Vise moins \
+         de deux cents mots : au-delà, on n'écoute plus.",
     );
     prompt
 }
@@ -74,14 +71,15 @@ pub fn delegated_prompt(call: &DelegateTask) -> String {
 pub fn spoken_from(summary: &str) -> String {
     // The *last* marked line, not the first: a session that explains its plan
     // may well quote the instruction it was given before carrying it out.
-    if let Some(line) = summary
-        .lines()
-        .rev()
-        .find_map(|line| line.trim().strip_prefix(SPOKEN_MARKER))
-    {
-        let said = clean(line);
+    // What is said runs from it to the end: one sentence was asked until
+    // 2026-11-27, and a project's questions are not one sentence.
+    let lines: Vec<&str> = summary.lines().collect();
+    if let Some(start) = lines.iter().rposition(|l| l.trim().starts_with(SPOKEN_MARKER)) {
+        let first = lines[start].trim().strip_prefix(SPOKEN_MARKER).unwrap_or_default();
+        let rest = lines[start + 1..].join("\n");
+        let said = clean(&format!("{first}\n{rest}"));
         if !said.is_empty() {
-            return truncate(&said);
+            return said;
         }
     }
 
@@ -89,12 +87,11 @@ pub fn spoken_from(summary: &str) -> String {
     // of everything that would be read aloud as punctuation noise.
     // `rsplit`, not `split().rev()`: splitting on a multi-character pattern
     // does not give a double-ended iterator.
-    let fallback = summary
+    summary
         .rsplit("\n\n")
         .map(clean)
         .find(|p| p.chars().any(char::is_alphanumeric))
-        .unwrap_or_default();
-    truncate(&fallback)
+        .unwrap_or_default()
 }
 
 /// Strip what a text-to-speech engine would read out as noise.
@@ -118,21 +115,6 @@ fn clean(text: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Cut at a sentence end rather than mid-word.
-fn truncate(text: &str) -> String {
-    if text.chars().count() <= MAX_SPOKEN {
-        return text.to_string();
-    }
-    let cut: String = text.chars().take(MAX_SPOKEN).collect();
-    match cut.rfind(['.', '!', '?']) {
-        Some(end) => cut[..=end].to_string(),
-        None => match cut.rfind(' ') {
-            Some(end) => format!("{}…", &cut[..end]),
-            None => cut,
-        },
-    }
 }
 
 /// What a delegated task produced, once it came back.
@@ -437,12 +419,17 @@ mod tests {
         assert_eq!(spoken, "Trois factures, soit 1240 euros.");
     }
 
+    /// Nothing is cut since 2026-11-27: until then, 300 characters, and an
+    /// answer on two subjects was heard stopping at « sans… ». Keeping it
+    /// short is the session's job, told in its instructions.
     #[test]
-    fn a_long_answer_is_cut_at_a_sentence() {
-        let long = format!("À DIRE : {} Fin.", "Une phrase de remplissage. ".repeat(30));
-        let spoken = spoken_from(&long);
-        assert!(spoken.chars().count() <= MAX_SPOKEN);
-        assert!(spoken.ends_with('.'));
+    fn what_is_said_runs_from_the_marker_to_the_end_uncut() {
+        let plan = "Le module de paiement change, et la base aussi. ".repeat(12);
+        let summary = format!("Le détail.\nÀ DIRE : Voici le plan.\n\n{plan}\nPremière question : quelle base ?");
+        assert_eq!(
+            spoken_from(&summary),
+            format!("Voici le plan. {} Première question : quelle base ?", plan.trim())
+        );
     }
 
     #[test]

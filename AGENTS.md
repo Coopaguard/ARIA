@@ -110,7 +110,8 @@ least. `RUSTFLAGS` overrides it and rebuilds everything, so do not set it in CI.
 
 - MCP Apps (SEP-1865), pushed by a session, sandboxed on port **7420**, a distinct origin pinned by the CSP.
 - Framing is governed by `frame-ancestors`, **never `X-Frame-Options`**: `DENY` refuses the window too.
-- Adding to a tile refreshes it. `show_tile` and `refresh_tile` are the only tools answered without asking.
+- Adding to a tile refreshes it. `show_tile` and `refresh_tile` are answered without asking, and so are the hooks'
+  `hooks_list` (names, never a secret's value) and `ask_secret` (ARIA's own form is the answer). Nothing else.
 
 **Storage**
 

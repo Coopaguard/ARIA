@@ -170,6 +170,13 @@ export type AriaEvent =
     }
   /** A tile already on screen has new contents, or its files changed. */
   | { type: "tile.updated"; uri: string }
+  /** A hook changed: the tab reads the list again. */
+  | { type: "hooks.changed" }
+  /** A hook's news reached the user, said or only shown. */
+  | ({ type: "hook.event" } & HookNews)
+  /** A session asks for a hook's secret: ARIA's own form, never a tile. */
+  | { type: "secret.asked"; ask: SecretAsk }
+  | { type: "secret.closed"; id: string; saved: boolean }
   | {
       type: "tile.ready";
       session: string;
@@ -800,4 +807,69 @@ export interface Decided {
   decision: Decision;
   /** `registry` is an automatic approval — decision 6 keeps the trace. */
   channel: Channel;
+}
+
+/** What a hook's state is. Mirrors `aria_core::hooks::Status`. */
+export type HookStatus = "new" | "active" | "off" | "failing" | "modified" | "broken";
+
+/** How a hook's news reached the user. Mirrors `aria_core::hooks::inbox::How`. */
+export type HookHow = "notify" | "lead" | "follow" | "interject";
+
+export type HookLevel = "info" | "normal" | "urgent";
+
+/** One run, as the tab shows it. Mirrors `aria_core::hooks::Record`. */
+/** What a run said. */
+export type HookResult =
+  | { result: "nothing" }
+  | { result: "event"; why: string; say: string | null; level: HookLevel }
+  | { result: "failed"; message: string };
+
+/** One run, as the tab shows it. Mirrors `aria_core::hooks::Record`. */
+export type HookRecord = { at: string; elapsed_ms: number } & HookResult;
+
+/** A row of the hooks tab. Mirrors `aria_core::hooks::Row`. */
+export interface HookRow {
+  id: string;
+  name: string;
+  status: HookStatus;
+  problem: string | null;
+  every_secs: number | null;
+  last_run: string | null;
+  next_run: string | null;
+  recent: HookRecord[];
+  waiting: number;
+  /** The secrets it declares: names, and whether one is stored. Never a value. */
+  secrets: { name: string; stored: boolean }[];
+  /** A trial run waiting for the user's verdict. */
+  awaiting: ({ number: number } & HookResult) | null;
+}
+
+
+/** One run of a trial, waiting for the user's verdict. */
+export type HookTrialStep = { number: number; refused: string | null; elapsed_ms: number } & (
+  | { result: "nothing" }
+  | { result: "event"; why: string; say: string | null; level: HookLevel; data: unknown }
+  | { result: "failed"; message: string }
+);
+
+/** What follows the user's verdict on a run. Mirrors `aria_core::hooks::Next`. */
+export type HookNext = "run_again" | "validated" | "discarded";
+
+/** A hook's news, said or shown. */
+export interface HookNews {
+  hook: string;
+  name: string;
+  why: string;
+  say?: string | null;
+  how: HookHow;
+  count: number;
+}
+
+/** A secret a session asks the user for. Never a value. Mirrors `aria_core::hooks::secrets::Ask`. */
+export interface SecretAsk {
+  id: string;
+  hook: string;
+  hook_name: string;
+  name: string;
+  label: string;
 }

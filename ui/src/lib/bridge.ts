@@ -20,6 +20,10 @@ import type {
   AudioMode,
   Config,
   GpuCard,
+  HookRow,
+  HookNext,
+  HookTrialStep,
+  SecretAsk,
   Connection,
   Conversations,
   Decided,
@@ -481,4 +485,55 @@ export async function forgetConversation(id: string): Promise<void> {
 /** The audit, newest first — who allowed what, and through which channel. */
 export async function audit(limit?: number): Promise<Decided[]> {
   return await invoke("audit", { limit: limit ?? null });
+}
+
+/** Every hook of `~/.aria/hooks`. Empty when the core is unreachable. */
+export async function hooksList(): Promise<HookRow[]> {
+  try {
+    return await invoke("hooks_list");
+  } catch {
+    return [];
+  }
+}
+
+/** One run of a hook's trial; its result then waits for the user's verdict. */
+export async function hookTrialStep(id: string): Promise<HookTrialStep> {
+  return await invoke("hook_trial_step", { id });
+}
+
+/** The user's verdict on that run. Two right runs validate the hook. */
+export async function hookTrialAnswer(id: string, right: boolean): Promise<HookNext> {
+  return await invoke("hook_trial_answer", { id, right });
+}
+
+export async function hookSetEnabled(id: string, enabled: boolean): Promise<void> {
+  await invoke("hook_set_enabled", { id, enabled });
+}
+
+/** Remove the hook's folder. */
+export async function hookDelete(id: string): Promise<void> {
+  await invoke("hook_delete", { id });
+}
+
+/** The secrets sessions are waiting for. Empty when the core is unreachable. */
+export async function secretAsks(): Promise<SecretAsk[]> {
+  try {
+    return await invoke("secret_asks");
+  } catch {
+    return [];
+  }
+}
+
+/** Straight to the system store. The session that asked only learns it was saved. */
+export async function secretSubmit(id: string, value: string): Promise<void> {
+  await invoke("secret_submit", { id, value });
+}
+
+export async function secretCancel(id: string): Promise<void> {
+  await invoke("secret_cancel", { id });
+}
+
+/** Open ARIA's form for a hook's secret, to type it or replace it. */
+export async function hookAskSecret(id: string, name: string): Promise<void> {
+  await invoke("hook_ask_secret", { id, name });
 }

@@ -494,6 +494,13 @@ impl Conversation {
                 if !self.core.tiles().shown_by(*session).is_empty() {
                     returned.inform_agent.push_str(" (Sa tuile est à l'écran.)");
                 }
+                // A session that needs answers asks them one at a time
+                // (2026-11-27), and the answer must reach that session, not
+                // open another. Said here, where it applies, rather than in
+                // the system prompt, which pays for it on every turn.
+                if returned.speak.trim_end().ends_with('?') {
+                    returned.inform_agent.push_str(" (Sa réponse va à cette tâche, avec follows.)");
+                }
                 let proposals = self.core.take_memory_proposals(*session);
                 returned
                     .inform_agent
@@ -564,15 +571,28 @@ impl Conversation {
     /// Spawned once per conversation. It survives a lagged subscription rather
     /// than ending: dropping out here would mean a delegation that silently
     /// never answers, which is the failure this whole module exists to avoid.
+    ///
+    /// # Never in the middle of an answer
+    ///
+    /// Fixed on 2026-11-27. A result used to go to the speech channel the
+    /// moment it came back, and the agent's sentences travel on that same
+    /// channel as they are written: a result that came back while an answer
+    /// was streaming was said **between two of its sentences**. It now waits in
+    /// [`hold_returns`] for the answer to end and its speech to be out.
     pub fn watch(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
         let conversation = Arc::clone(self);
         let mut events = conversation.core.broker().subscribe();
+        let (returns, held) = mpsc::unbounded_channel();
+        tokio::spawn(hold_returns(Arc::clone(self), held));
         tokio::spawn(async move {
             loop {
                 match events.recv().await {
                     Ok(envelope) => {
                         if let Some(returned) = conversation.on_event(&envelope.event) {
-                            conversation.emit(returned).await;
+                            // Unbounded, and that is safe: one entry per
+                            // delegated task, and waiting here would stall
+                            // the event stream behind an answer.
+                            let _ = returns.send(returned);
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
@@ -589,6 +609,70 @@ impl Conversation {
                 }
             }
         })
+    }
+}
+
+/// Longest a returned result waits for the floor. Past it, it is said anyway:
+/// a stale `Listening` — a fragment heard and never ended — must not keep a
+/// result unsaid, and silence after « je regarde » is the worst outcome.
+pub const MAX_HOLD: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Whether a returned result may be said now.
+///
+/// Not while the main agent is writing an answer, not while anyone is
+/// speaking. Unlike a hook's news, it does not wait for a question to be
+/// answered: the user asked for this result.
+pub fn may_return(answering: bool, quiet: bool, waited: std::time::Duration) -> bool {
+    waited >= MAX_HOLD || (!answering && quiet)
+}
+
+/// Say returned results, in order, once the floor is free.
+///
+/// The marks are read all the time, not only while something waits: a
+/// `TurnBegan` missed while idle would leave an answer looking finished.
+async fn hold_returns(
+    conversation: Arc<Conversation>,
+    mut held: mpsc::UnboundedReceiver<delegation::Returned>,
+) {
+    use std::collections::VecDeque;
+    use std::time::Instant;
+
+    let mut marks = conversation.core.marks();
+    let mut watch = crate::hooks::live::Watch::default();
+    let mut waiting: VecDeque<(Instant, delegation::Returned)> = VecDeque::new();
+    let mut tick = tokio::time::interval(std::time::Duration::from_millis(100));
+    loop {
+        tokio::select! {
+            mark = marks.recv() => match mark {
+                Ok(marked) => watch.saw(&marked.mark, marked.at),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            },
+            returned = held.recv() => match returned {
+                Some(returned) => waiting.push_back((Instant::now(), returned)),
+                None => return,
+            },
+            _ = tick.tick() => {
+                let now = Instant::now();
+                let voice = conversation.core.voice_state();
+                watch.note_voice(voice, now);
+                if waiting.is_empty() {
+                    continue;
+                }
+                let oldest = now.duration_since(waiting[0].0);
+                if !may_return(watch.answering(now), watch.quiet(voice, now), oldest) {
+                    continue;
+                }
+                if oldest >= MAX_HOLD {
+                    tracing::warn!("un résultat attendait depuis {} s : dit quand même", oldest.as_secs());
+                }
+                // All of them: nothing is being answered, so they follow one
+                // another and nothing else comes between.
+                while let Some((_, returned)) = waiting.pop_front() {
+                    conversation.emit(returned).await;
+                }
+            }
+        }
     }
 }
 
@@ -692,6 +776,63 @@ mod tests {
         assert!(told.starts_with("affiche la carte"));
         assert!(told.contains("ui://aria/tile/3 « Trajet »"));
         assert!(told.contains("refresh_tile"));
+    }
+
+    /// The rule, alone: free floor, or held long enough.
+    #[test]
+    fn a_result_waits_for_the_answer_and_the_voice_but_not_forever() {
+        use std::time::Duration;
+        let soon = Duration::from_secs(1);
+        assert!(may_return(false, true, soon));
+        assert!(!may_return(true, true, soon), "an answer is being written");
+        assert!(!may_return(false, false, soon), "someone is speaking");
+        assert!(may_return(true, false, MAX_HOLD), "never left unsaid");
+    }
+
+    /// The fault, end to end: a result that comes back while the agent is
+    /// answering is not said between two of its sentences, but after them.
+    #[tokio::test]
+    async fn a_result_is_never_said_in_the_middle_of_an_answer() {
+        use crate::agent::marks::Mark;
+        use std::time::Duration;
+
+        let core = Core::new();
+        let (conversation, mut channels) = Conversation::new(Arc::clone(&core));
+        conversation.watch();
+        let session = core.open_session("météo", None);
+        conversation
+            .journal
+            .lock()
+            .unwrap()
+            .delegated(clock::now(), "t1", "la météo");
+        conversation.delegations.record("t1", session);
+        // Subscribed: the hold reads the marks from its first tick.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        core.mark(Mark::TurnBegan { aloud: true });
+        conversation.say("Le fichier markdown est actualisé.").await;
+        core.finish_session(session, "À DIRE : Il fera vingt-trois degrés.");
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        conversation.say("Je relance la compilation.").await;
+        core.mark(Mark::TurnFinished { aloud: true, text: "…".into() });
+
+        let mut said = Vec::new();
+        for _ in 0..3 {
+            said.push(
+                tokio::time::timeout(Duration::from_secs(2), channels.speech.recv())
+                    .await
+                    .expect("said in time")
+                    .unwrap(),
+            );
+        }
+        assert_eq!(
+            said,
+            [
+                "Le fichier markdown est actualisé.",
+                "Je relance la compilation.",
+                "Il fera vingt-trois degrés.",
+            ]
+        );
     }
 
     /// Only a turn the **user** opened is answered out loud. A session's result
