@@ -22,6 +22,7 @@ import type {
   Envelope,
   Loading,
   ModeTrigger,
+  Part,
   PermissionRequest,
   Profile,
   Seq,
@@ -114,6 +115,11 @@ export interface Store {
   level: number;
   /** Last refusal from the core, in French, for the status line. */
   notice: string | null;
+  /**
+   * What does not work right now — the ear, the agent — in words for the user.
+   * Since 2026-11-27: both used to fail in the log only.
+   */
+  faults: Partial<Record<Part, string>>;
 }
 
 export const store = reactive<Store>({
@@ -140,6 +146,7 @@ export const store = reactive<Store>({
   askedAt: 0,
   level: 0,
   notice: null,
+  faults: {},
 });
 
 /** Replace everything with a snapshot. Used at start-up, and after a gap. */
@@ -150,6 +157,7 @@ export function applySnapshot(snapshot: Snapshot): void {
   store.loading = snapshot.loading;
   store.profile = snapshot.profile;
   store.tilesServed = snapshot.tiles_served;
+  store.faults = { ...snapshot.faults };
   // A snapshot carries sessions and pending requests but not the activity
   // feed: the feed is a stream of events, and events that fell off the ring are
   // gone. Showing an empty feed for a session whose state we do know is the
@@ -333,6 +341,11 @@ export function applyEvent(envelope: Envelope): void {
       if (session) session.outcome = { ok: false, text: envelope.message };
       break;
     }
+
+    case "fault":
+      if (envelope.message) store.faults[envelope.part] = envelope.message;
+      else delete store.faults[envelope.part];
+      break;
   }
 }
 

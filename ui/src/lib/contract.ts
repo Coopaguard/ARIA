@@ -190,7 +190,11 @@ export type AriaEvent =
   | { type: "models.download"; download: Download | null }
   | { type: "audio.mode"; mode: AudioMode; trigger: ModeTrigger }
   | { type: "task.done"; session: string; summary: string }
-  | { type: "task.error"; session: string; message: string };
+  | { type: "task.error"; session: string; message: string }
+  | { type: "fault"; part: Part; message?: string };
+
+/** What can stop working on its own: the ear, or the agent that answers. */
+export type Part = "hearing" | "agent";
 
 /** An event with its position in the stream. `serde` flattens it, so the event's
  *  own fields sit alongside `seq` and `at`. */
@@ -226,6 +230,8 @@ export interface Snapshot {
    * inside every tile — which reads as broken tiles.
    */
   tiles_served: boolean;
+  /** What does not work right now, in words for the user. */
+  faults: Partial<Record<Part, string>>;
 }
 
 /** How the window opens the stream. Handed over IPC and nowhere else. */

@@ -40,15 +40,29 @@ pub fn load(dir: &Path) -> Result<ParakeetTDT> {
         .with_environment(environment()?)
         .with_execution_provider(ExecutionProvider::Cpu);
     let stack = crate::runtime::stack();
-    let device = if gpu && crate::runtime::ready() {
+    let on_card = gpu && crate::runtime::ready();
+    let mut device = "le processeur".to_string();
+    if on_card {
         config = config.with_custom_configure(move |builder| crate::runtime::register(builder, stack));
-        format!("la carte graphique ({stack:?})")
-    } else {
-        "le processeur".to_string()
-    };
+        device = format!("la carte graphique ({stack:?})");
+    }
     let started = std::time::Instant::now();
-    let model = ParakeetTDT::from_pretrained(dir, Some(config))
-        .map_err(|e| anyhow!("loading the model failed: {e}"))?;
+    let model = match ParakeetTDT::from_pretrained(dir, Some(config)) {
+        Ok(model) => model,
+        // A card's provider may refuse the whole model rather than leave the
+        // nodes it cannot run to the CPU: OpenVINO did, on 2026-11-27, and the
+        // ear was gone. Slower beats deaf.
+        Err(e) if on_card => {
+            tracing::warn!("{device} refuse Parakeet, il est chargé sur le processeur : {e}");
+            device = "le processeur, la carte l'ayant refusé".to_string();
+            let cpu = ExecutionConfig::new()
+                .with_environment(environment()?)
+                .with_execution_provider(ExecutionProvider::Cpu);
+            ParakeetTDT::from_pretrained(dir, Some(cpu))
+                .map_err(|e| anyhow!("loading the model failed: {e}"))?
+        }
+        Err(e) => return Err(anyhow!("loading the model failed: {e}")),
+    };
     tracing::info!(gpu, ms = started.elapsed().as_millis(), "Parakeet chargé sur {device}");
     Ok(model)
 }

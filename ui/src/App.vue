@@ -26,6 +26,7 @@ import Orb from "./orb/Orb.vue";
 import {
   connect,
   getConfig,
+  restartAgent,
   saveConfig,
   sayToAgent,
   stopAll,
@@ -268,6 +269,32 @@ const status = computed(() => {
 });
 
 /**
+ * What does not work, under the orb: the ear first, then the agent.
+ *
+ * Its own line rather than the status: the status is a short word in capitals,
+ * and these are sentences that say what to do. Nothing truncates them.
+ */
+const faults = computed(() =>
+  (["hearing", "agent"] as const).flatMap((part) => {
+    const text = store.faults[part];
+    return text ? [{ part, text }] : [];
+  }),
+);
+const retrying = ref(false);
+
+/** « Réessayer » under an agent fault: after « claude auth login », typically. */
+async function retryAgent() {
+  retrying.value = true;
+  try {
+    await restartAgent();
+  } catch (e) {
+    store.notice = String(e);
+  } finally {
+    retrying.value = false;
+  }
+}
+
+/**
  * Typing goes to the main agent, exactly as speaking does.
  *
  * It used to open a Claude Code session per line, because the intent router was
@@ -289,7 +316,9 @@ async function send(text: string) {
       // Not an error: ARIA runs with its agent off when the CLI is missing. But
       // silence and absence look identical on screen, and they are not the
       // same thing to the person waiting.
-      store.notice = "aucun agent ne tourne — vérifie la CLI dans les réglages";
+      store.notice = store.faults.agent
+        ? "aucun agent ne tourne"
+        : "aucun agent ne tourne — vérifie la CLI dans les réglages";
     }
   } catch (e) {
     store.notice = String(e);
@@ -376,6 +405,17 @@ async function send(text: string) {
         @toggle="toggleAudio"
       />
       <div class="status">{{ status }}</div>
+      <p v-for="fault in faults" :key="fault.part" class="fault">
+        {{ fault.text }}
+        <button
+          v-if="fault.part === 'agent'"
+          type="button"
+          :disabled="retrying"
+          @click="retryAgent"
+        >
+          {{ retrying ? "…" : "Réessayer" }}
+        </button>
+      </p>
     </div>
 
     <CommandBar
@@ -445,6 +485,33 @@ async function send(text: string) {
   text-align: center;
 }
 
+
+/* A fault under the orb: amber, ARIA's own colour, in sentence case — it is
+   something to read and act on, not a state label. */
+.fault {
+  margin: 10px 16px 0;
+  max-width: 34rem;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--amber);
+}
+
+.fault button {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fault button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 .transcript.partial {
   color: var(--dim);

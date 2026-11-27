@@ -87,6 +87,9 @@ pub struct Snapshot {
     /// broken » when the truth is « the port was taken ». The window needs to
     /// be able to say which — see `tiles::serving`.
     pub tiles_served: bool,
+    /// What does not work right now, in words for the user. See
+    /// [`events::Event::Fault`].
+    pub faults: std::collections::BTreeMap<events::Part, String>,
 }
 
 /// What the settings screen shows about the active engine.
@@ -126,6 +129,8 @@ pub struct Core {
     /// neither knows about the other — see [`LoadRegistry`] for the defect
     /// that taught us.
     loading: Mutex<LoadRegistry>,
+    /// What does not work right now — [`Self::set_fault`].
+    faults: Mutex<std::collections::BTreeMap<events::Part, String>>,
     /// Whether the ear transcribes or hands over the sound — epic 10.
     ear: Mutex<audio::Ear>,
     /// What the main agent does, timestamped, for a bench. See
@@ -245,6 +250,7 @@ impl Core {
             audio: Mutex::new(AudioGate::new()),
             voice: Mutex::new(VoiceState::Idle),
             loading: Mutex::new(LoadRegistry::default()),
+            faults: Mutex::new(std::collections::BTreeMap::new()),
             ear: Mutex::new(audio::Ear::default()),
             marks: tokio::sync::broadcast::Sender::new(256),
             level: tokio::sync::watch::Sender::new(0.0),
@@ -281,7 +287,28 @@ impl Core {
             tiles_served: self.tiles.serving(),
             sessions: self.sessions.lock().unwrap().all(),
             pending: self.permissions.lock().unwrap().pending(),
+            faults: self.faults.lock().unwrap().clone(),
         }
+    }
+
+    // ---------------------------------------------------------------- faults
+
+    /// Say that a part of ARIA does not work, or — with `None` — works again.
+    ///
+    /// Published only when it changes: the agent restarts with every thread
+    /// reopened, and each success would otherwise be an event for nothing.
+    pub fn set_fault(&self, part: events::Part, message: Option<String>) {
+        {
+            let mut faults = self.faults.lock().unwrap();
+            let changed = match &message {
+                Some(text) => faults.insert(part, text.clone()).as_ref() != Some(text),
+                None => faults.remove(&part).is_some(),
+            };
+            if !changed {
+                return;
+            }
+        }
+        self.broker.publish(Event::Fault { part, message });
     }
 
     // ----------------------------------------------------------------- audio
@@ -1478,6 +1505,31 @@ mod tests {
         let snapshot = core.snapshot();
         assert_eq!(snapshot.seq, 1);
         assert_eq!(snapshot.sessions.len(), 1);
+    }
+
+    /// A fault is in the snapshot for a window that opens late, and the agent
+    /// restarting fine on every reopened thread publishes nothing.
+    #[test]
+    fn a_fault_is_published_when_it_changes_and_kept_in_the_snapshot() {
+        let core = Core::new();
+        let start = core.broker().next_seq();
+        core.set_fault(events::Part::Agent, None);
+        assert_eq!(core.broker().next_seq(), start, "rien n'était en panne");
+        core.set_fault(events::Part::Agent, Some("déconnecté".into()));
+        core.set_fault(events::Part::Agent, Some("déconnecté".into()));
+        assert_eq!(core.broker().next_seq(), start + 1);
+        assert_eq!(core.snapshot().faults[&events::Part::Agent], "déconnecté");
+        core.set_fault(events::Part::Agent, None);
+        assert_eq!(core.broker().next_seq(), start + 2);
+        assert!(core.snapshot().faults.is_empty());
+        assert_eq!(
+            serde_json::to_value(events::Event::Fault {
+                part: events::Part::Hearing,
+                message: None
+            })
+            .unwrap(),
+            serde_json::json!({ "type": "fault", "part": "hearing" })
+        );
     }
 
     #[test]

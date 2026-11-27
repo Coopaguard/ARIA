@@ -464,6 +464,11 @@ export async function openConversation(id: string): Promise<void> {
 }
 
 /** Start a fresh thread, and a fresh session with it. */
+/** Start the main agent again on the open thread — « Réessayer » under a fault. */
+export async function restartAgent(): Promise<void> {
+  await invoke("restart_agent");
+}
+
 export async function newConversation(): Promise<void> {
   await invoke("new_conversation");
 }

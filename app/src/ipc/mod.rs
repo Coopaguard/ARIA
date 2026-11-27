@@ -1474,6 +1474,21 @@ pub async fn open_conversation(
     Ok(())
 }
 
+/// Start the main agent again, on the thread already open — the « Réessayer »
+/// under a fault, once the user has logged the CLI back in (2026-11-27).
+#[tauri::command]
+pub async fn restart_agent(app: AppHandle, ipc: State<'_, Ipc>) -> Result<(), String> {
+    let core = Arc::clone(&ipc.core);
+    let thread = core
+        .current_conversation()
+        .and_then(|id| core.open_conversation(id));
+    crate::pilot::restart(app, Arc::clone(&core)).await;
+    if let (Some(thread), Some(conversation)) = (thread, core.conversation()) {
+        conversation.resume(thread).await;
+    }
+    Ok(())
+}
+
 /// Start a fresh thread, and a fresh session with it.
 #[tauri::command]
 pub async fn new_conversation(app: AppHandle, ipc: State<'_, Ipc>) -> Result<(), String> {

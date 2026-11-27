@@ -4,10 +4,11 @@
 //! found, and the stack follows from it — CUDA for NVIDIA, ROCm for AMD,
 //! oneAPI for Intel. With none of them, DirectML, and the switch is disabled.
 //!
-//! **CUDA and oneAPI are wired, ROCm is not**: ONNX Runtime is loaded from a DLL
-//! per stack (`runtime.rs`, decision 131), and AMD has no Windows build at
-//! all. An AMD card runs on DirectML, and [`Stack`] says which one is meant
-//! and which one runs, rather than pretending.
+//! **CUDA runs; oneAPI is wired but not offered; ROCm is not wired**: ONNX
+//! Runtime is loaded from a DLL per stack (`runtime.rs`, decision 131), AMD has
+//! no Windows build at all, and Intel's does not read Parakeet
+//! ([`Stack::available`]). Those cards run on DirectML, and [`Stack`] says
+//! which one is meant and which one runs, rather than pretending.
 //!
 //! Read from DXGI, the list DirectX chooses from: the adapter with the most
 //! dedicated memory among the three makers wins, which is the discrete card on
@@ -56,8 +57,14 @@ pub enum Stack {
 
 impl Stack {
     /// Whether this build can run it.
+    ///
+    /// oneAPI is wired (`runtime.rs`) but **not offered**, since 2026-11-27: on
+    /// an Iris Xe, Intel's OpenVINO 1.24.1 refused Parakeet outright — « OpenVINO
+    /// does not support the following ONNX operations: Attention » — and the
+    /// ear was gone. DirectML had been running it on the same card. Back on
+    /// the day an OpenVINO build reads the model.
     pub fn available(self) -> bool {
-        matches!(self, Self::Cuda | Self::OneApi | Self::DirectMl)
+        matches!(self, Self::Cuda | Self::DirectMl)
     }
 }
 
@@ -148,12 +155,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nvidia_and_intel_have_their_stack_and_amd_falls_back() {
+    fn nvidia_has_its_stack_and_amd_and_intel_fall_back() {
         assert_eq!(Card::from(Some(Vendor::Nvidia), String::new()).runs, Stack::Cuda);
         let amd = Card::from(Some(Vendor::Amd), String::new());
         assert_eq!((amd.native, amd.runs), (Some(Stack::Rocm), Stack::DirectMl));
         let intel = Card::from(Some(Vendor::Intel), String::new());
-        assert_eq!((intel.native, intel.runs), (Some(Stack::OneApi), Stack::OneApi));
+        assert_eq!((intel.native, intel.runs), (Some(Stack::OneApi), Stack::DirectMl));
         let none = Card::from(None, String::new());
         assert!(!none.recognised());
         assert_eq!(none.runs, Stack::DirectMl);

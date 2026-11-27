@@ -52,6 +52,31 @@ use super::session::{Config, MainAgent, Speaker, Speech};
 use crate::Core;
 use crate::audio::VoiceState;
 
+/// What the window says when the main agent cannot answer, from the error.
+///
+/// A login that ran out is singled out: it is the one failure the user fixes
+/// alone, in a terminal, and Claude Code's own message says it in English at
+/// the bottom of a log. Seen on 2026-11-27, with a window that said nothing.
+pub fn agent_fault(error: &str) -> String {
+    if needs_login(error) {
+        return "Claude Code demande une nouvelle connexion : lance « claude auth login » \
+                dans un terminal, puis Réessayer."
+            .into();
+    }
+    let first = error.lines().next().unwrap_or(error).trim();
+    let mut short: String = first.chars().take(160).collect();
+    if short.len() < first.len() {
+        short.push('…');
+    }
+    format!("L'agent principal ne répond pas : {short}")
+}
+
+/// The CLI's login ran out, or was never made.
+pub fn needs_login(error: &str) -> bool {
+    let lower = error.to_lowercase();
+    lower.contains("auth login") || lower.contains("failed to authenticate")
+}
+
 /// The half of the agent the pilot speaks through, whichever engine it is.
 ///
 /// An enum and not a trait object: there are two, the pilot is the only
@@ -593,6 +618,11 @@ async fn read(
 
             Speech::Failed(message) => {
                 tracing::error!("l'agent principal a échoué : {message}");
+                // Only a login is a lasting fault; a turn that failed once may
+                // well succeed the next time, and is already said aloud below.
+                if needs_login(&message) {
+                    core.set_fault(crate::events::Part::Agent, Some(agent_fault(&message)));
+                }
                 core.mark(Mark::TurnFinished {
                     aloud: turn.is_aloud(),
                     text: format!("échec : {message}"),
@@ -602,7 +632,13 @@ async fn read(
                 // CLI error string, and reading one aloud is worse than
                 // useless.
                 if cut.is_none() {
-                    conversation.say("Je n'ai pas pu répondre.").await;
+                    conversation
+                        .say(if needs_login(&message) {
+                            "Je n'ai pas pu répondre : Claude Code demande une nouvelle connexion."
+                        } else {
+                            "Je n'ai pas pu répondre."
+                        })
+                        .await;
                 }
                 aloud.reset();
                 delegated = false;
@@ -918,5 +954,18 @@ mod tests {
         let second = turn.begin(true);
         assert!(turn.still_waiting(second));
         assert!(!turn.still_waiting(first));
+    }
+
+    /// The CLI's own words on 2026-11-27, at the warm-up: the window must say
+    /// what to do, in French.
+    #[test]
+    fn an_expired_login_says_what_to_run() {
+        let cli = "le tour de chauffe a échoué : Failed to authenticate: this login reached \
+                   its time limit and cannot be renewed. Run `claude auth login` to sign in again";
+        assert!(needs_login(cli));
+        assert!(agent_fault(cli).contains("claude auth login"));
+        let other = agent_fault("le processus s'est arrêté pendant le tour de chauffe");
+        assert!(!needs_login(&other));
+        assert!(other.starts_with("L'agent principal ne répond pas"));
     }
 }

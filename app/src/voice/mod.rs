@@ -542,12 +542,25 @@ fn listen(
             // nothing to do with whether capture then starts.
             core.finished_load(Load::Hearing);
             match loaded {
-                Ok(loaded) => engine = Some(loaded),
+                Ok(loaded) => {
+                    core.set_fault(aria_core::events::Part::Hearing, None);
+                    engine = Some(loaded);
+                }
                 Err(e) => {
                     // Parking rather than retrying: a missing model does not
                     // appear by itself, and a retry loop would fill the log
                     // instead of the gap.
                     tracing::error!("chaîne vocale indisponible, écoute désactivée : {e:#}");
+                    // On screen too (2026-11-27): a deaf ARIA whose window
+                    // looks ready is a user talking to nothing.
+                    core.set_fault(
+                        aria_core::events::Part::Hearing,
+                        Some(
+                            "Je ne peux pas t'entendre : le modèle d'écoute ne s'est pas chargé. \
+                             Le détail est dans le journal ; tu peux toujours écrire."
+                                .into(),
+                        ),
+                    );
                     // Left idle rather than stuck loading: the orb must not
                     // spin for ever over something that will never arrive.
                     // `finished_load` above already did that, unless the voice

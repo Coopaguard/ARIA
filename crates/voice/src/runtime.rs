@@ -10,7 +10,7 @@
 //! |---|---|---|
 //! | DirectML | Microsoft ORT DirectML 1.24.4 + DirectML 1.15.4 | **shipped** beside the executable (`app/build.rs`) |
 //! | CUDA | Microsoft ORT GPU 1.31.1 + CUDA 13 / cuDNN 9 (1.3 GB) | downloaded |
-//! | oneAPI | Intel ORT OpenVINO 1.24.1 | downloaded |
+//! | oneAPI | Intel ORT OpenVINO 1.24.1 | downloaded — **not offered** since 2026-11-27: it refuses Parakeet ([`Stack::available`]) |
 //!
 //! ROCm has no Windows build at all: an AMD card runs DirectML.
 //!
@@ -189,7 +189,9 @@ pub fn init() -> Result<&'static Loaded> {
     }
     let native = crate::gpu::card().native;
     let (stack, dir) = match native {
-        Some(stack) if installed(stack) && stack != Stack::DirectMl => {
+        // `available`: a oneAPI folder downloaded by 0.1.2 or earlier stays
+        // on disk and is no longer loaded (see `Stack::available`).
+        Some(stack) if stack.available() && installed(stack) && stack != Stack::DirectMl => {
             (stack, downloaded(bundle(stack).expect("installed implies a bundle")))
         }
         _ => (Stack::DirectMl, shipped()),
@@ -293,7 +295,7 @@ pub fn ensure_wanted() -> Option<Stack> {
         return None;
     }
     let card = crate::gpu::card();
-    let stack = card.native.filter(|s| bundle(*s).is_some())?;
+    let stack = card.native.filter(|s| s.available() && bundle(*s).is_some())?;
     if installed(stack) {
         return None;
     }
