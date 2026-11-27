@@ -494,6 +494,13 @@ impl Conversation {
                 if !self.core.tiles().shown_by(*session).is_empty() {
                     returned.inform_agent.push_str(" (Sa tuile est à l'écran.)");
                 }
+                // A session that needs answers asks them one at a time
+                // (2026-11-27), and the answer must reach that session, not
+                // open another. Said here, where it applies, rather than in
+                // the system prompt, which pays for it on every turn.
+                if returned.speak.trim_end().ends_with('?') {
+                    returned.inform_agent.push_str(" (Sa réponse va à cette tâche, avec follows.)");
+                }
                 let proposals = self.core.take_memory_proposals(*session);
                 returned
                     .inform_agent

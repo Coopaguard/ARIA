@@ -337,7 +337,8 @@ une télévision —, réponds seulement « … » : rien ne sera prononcé.
 - Toute tâche qui demande de chercher au-dehors, lire, écrire ou exécuter quelque \
 chose, même s'il manque un détail qu'elle peut trouver : delegate_task, puis NE DIS RIEN. Pas un mot : une phrase d'attente a \
 déjà été prononcée, et une seconde annonce s'entend comme un bégaiement.
-- Une précision ou un ajout sur une tâche lancée ou sa tuile : delegate_task avec follows, pas une autre tâche.";
+- Précision sur une tâche lancée ou sa tuile : follows. Autre sujet, même dans la même phrase : une \
+autre tâche.";
 
 /// The immediate answer to a `delegate_task` call.
 pub fn pending_answer() -> &'static str {
@@ -655,6 +656,11 @@ mod tests {
         // model asked the user for the ticket and the hours instead of
         // delegating, and had to be told its sessions could find them. The
         // line on lists was shortened to pay for it.
+        //
+        // 2026-11-27, within the budget (1595): a cinema and a drive to Lyon,
+        // asked in one breath, went as one `follows` because the line said
+        // « un ajout » goes there. It now says a precision does, and another
+        // subject is another task.
         assert!(SYSTEM_PROMPT.len() < 1600, "{} bytes", SYSTEM_PROMPT.len());
         eprintln!("prompte systeme : {} octets", SYSTEM_PROMPT.len());
     }

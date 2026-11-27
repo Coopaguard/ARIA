@@ -11,13 +11,16 @@ released.
 - [x] 0.1.2: updates wait for ARIA to close, and install themselves at start; messages in order; delegated sessions
       propose memories; delegation even when a detail is missing; ARIA's own words cut from the start of a turn;
       30 s of listening after an answer in named mode; the first-run screen; *tu* everywhere.
+- [x] 0.1.3: hearing back on Intel cards (DirectML, the processor if a card refuses the model); a deaf ear or a
+      logged-out Claude Code written under the orb, with « Réessayer ».
 
-## In progress, for 0.1.3
+## In progress
 
-- [x] **ARIA no longer heard, on an Intel card.** 0.1.1 downloaded Intel's runtime (OpenVINO) in the background, and
-      the restart of the update loaded it: it refuses the listening model (`Attention`). Intel cards go back to
-      DirectML, which ran it; and a card that refuses the model now hands it to the processor instead of leaving ARIA
-      deaf.
-- [x] **A logged-out Claude Code said nothing on screen.** A deaf ear or an agent that cannot start is now written
-      under the orb; for an expired login, what to run, and a « Réessayer » button.
+- [x] **Two subjects, one task.** A cinema and a drive to Lyon, asked in one breath, went to one session as a
+      `follows`, and its single answer was cut off aloud (« sans… »). The prompt now keeps `follows` for a precision
+      and gives another subject its own task.
+- [x] **How long a session speaks.** No fixed cut any more (300 characters): everything after « À DIRE : » is said,
+      and sessions aim under two hundred words. Longer — a plan, its risks — goes to a tile, and questions are asked
+      one at a time, each answer coming back to the same session.
+- [ ] **Answer in the tile.** A tile with the five questions, answered there: the host refuses `ui/message` today.
 - [ ] **Session start-up.** About 7 s per delegated task, most of it loading connectors. To measure before choosing.
