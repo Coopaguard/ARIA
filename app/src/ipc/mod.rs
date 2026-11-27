@@ -22,6 +22,8 @@
 //! without the stream saying so. A command that mutated something itself would
 //! put a hole in the activity feed that nobody can see.
 
+pub mod hooks;
+
 use std::sync::{Arc, Mutex};
 
 use aria_core::audio::{AudioMode, Load, ModeTrigger};
@@ -835,6 +837,11 @@ pub fn scenarios() -> Vec<Scenario> {
             about: "Une demande qui reste en attente : elle n'expire pas.",
         },
         Scenario {
+            id: "secret",
+            label: "Secret d'un hook",
+            about: "Une session demande un mot de passe : le formulaire d'ARIA, sans carte, puis le trousseau.",
+        },
+        Scenario {
             id: "failure",
             label: "Session qui échoue",
             about: "Ce qui s'affiche quand une session se termine mal.",
@@ -855,6 +862,7 @@ pub async fn play_scenario(ipc: State<'_, Ipc>, id: String) -> Result<(), String
         "clock" => return play_clock(&ipc).await,
         "refresh" => return play_refresh(&ipc).await,
         "permission" => return play_permission(&ipc).await,
+        "secret" => return hooks::play_secret(&ipc).await,
         "failure" => return play_failure(&ipc).await,
         // The weather one is the original and stays the default: an unknown
         // id plays it rather than doing nothing, because a button that does

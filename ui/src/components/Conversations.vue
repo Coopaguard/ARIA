@@ -44,6 +44,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import {
   conversationSessions,
   conversations,
+  hooksList,
   forgetConversation,
   newConversation,
   openConversation,
@@ -53,6 +54,7 @@ import {
 } from "../lib/bridge";
 import type { Conversation, ProjectSession } from "../lib/contract";
 import { liveSessions, store } from "../lib/store";
+import HooksPanel from "./HooksPanel.vue";
 import SessionPanel from "./SessionPanel.vue";
 import Settings from "./Settings.vue";
 
@@ -61,7 +63,7 @@ import Settings from "./Settings.vue";
  * settings dialog and the button that opened it are gone, and the panel
  * widens while that tab shows, because its rows put a label beside a control.
  */
-type LeftTab = "threads" | "sessions" | "settings" | "scenarios";
+type LeftTab = "threads" | "sessions" | "hooks" | "settings" | "scenarios";
 
 /**
  * Whether the scenario tab is offered **at all**.
@@ -99,9 +101,19 @@ async function refresh() {
   saving.value = answer.saving;
 }
 
+/** Hooks that need the user — modified or failing — marked on the tab. */
+const hooksAsking = ref(0);
+async function countHooks() {
+  hooksAsking.value = (await hooksList()).filter((h) =>
+    ["modified", "failing", "broken"].includes(h.status),
+  ).length;
+}
+watch(() => store.hooksVersion, countHooks);
+
 onMounted(async () => {
   if (isDev) list.value = await scenarios();
   await refresh();
+  await countHooks();
 });
 
 /**
@@ -234,6 +246,20 @@ async function play(one: Scenario) {
       </button>
       <button
         role="tab"
+        :aria-selected="tab === 'hooks'"
+        :class="{ on: tab === 'hooks', asking: hooksAsking > 0 }"
+        title="Hooks"
+        aria-label="Hooks"
+        @click="tab = 'hooks'"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+        </svg>
+        <span class="badge" v-if="hooksAsking">{{ hooksAsking }}</span>
+      </button>
+      <button
+        role="tab"
         :aria-selected="tab === 'settings'"
         :class="{ on: tab === 'settings' }"
         title="Réglages"
@@ -264,6 +290,8 @@ async function play(one: Scenario) {
 
     <div class="scroll">
     <SessionPanel v-if="tab === 'sessions'" />
+
+    <HooksPanel v-else-if="tab === 'hooks'" />
 
     <Settings v-else-if="tab === 'settings'" />
 

@@ -33,6 +33,7 @@
 //! means this await has no timeout, deliberately. The session is blocked, the
 //! interface says so, and nothing is lost.
 
+pub mod hooks;
 pub mod subagent;
 pub mod voice;
 
@@ -237,7 +238,7 @@ impl Relay {
     pub fn new(core: Arc<Core>) -> Self {
         Self {
             core,
-            tool_router: Self::tool_router(),
+            tool_router: Self::tool_router() + Self::hooks_router(),
         }
     }
 

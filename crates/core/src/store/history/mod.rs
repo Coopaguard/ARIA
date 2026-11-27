@@ -60,6 +60,7 @@
 //! watches the agent start over.
 
 pub mod audit;
+mod hooks;
 
 use std::path::Path;
 
@@ -80,7 +81,10 @@ const TITLE_CHARS: usize = 60;
 const ELLIPSIS: &str = "…";
 
 /// The schema, one entry per version. Append only — see [`db::migrate`].
-const MIGRATIONS: [&str; 1] = [include_str!("schema/001-initial.sql")];
+const MIGRATIONS: [&str; 2] = [
+    include_str!("schema/001-initial.sql"),
+    include_str!("schema/002-hooks.sql"),
+];
 
 /// One conversation, as the left-hand menu addresses it.
 #[derive(

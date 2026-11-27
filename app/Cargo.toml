@@ -63,6 +63,7 @@ tracing-subscriber.workspace = true
 # lock file, pulled by other crates.
 tracing-appender = "0.2"
 dirs = "6"
+keyring = "4.2.0"
 
 [dev-dependencies]
 # For the instruction files: `instructions::ensure` writes to disk, and a test

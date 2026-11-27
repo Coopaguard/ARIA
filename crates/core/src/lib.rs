@@ -36,6 +36,7 @@ pub mod actions;
 pub mod agent;
 pub mod audio;
 pub mod events;
+pub mod hooks;
 pub mod mcp;
 pub mod orchestrator;
 pub mod permissions;
@@ -239,6 +240,13 @@ pub struct Core {
     /// What delegated sessions proposed to remember, until their result is
     /// handed to the main agent. See [`agent::delegation::MemoryProposal`].
     proposals: Mutex<std::collections::HashMap<SessionId, Vec<agent::delegation::MemoryProposal>>>,
+    /// `~/.aria/hooks`, once `app/` has handed it over. See [`hooks`] and
+    /// `hooks::live` for the methods.
+    hooks: Mutex<Option<Arc<hooks::Hooks>>>,
+    /// The system store hooks' secrets live in, handed over by `app/`.
+    secrets: Mutex<Option<Arc<dyn hooks::Secrets>>>,
+    /// Secrets asked of the user and not yet typed. See `hooks::secrets`.
+    secret_desk: hooks::secrets::Desk,
 }
 
 impl Core {
@@ -267,6 +275,9 @@ impl Core {
             home: Mutex::new(agent::instructions::Home::default()),
             agent_token: uuid::Uuid::new_v4().to_string(),
             proposals: Mutex::new(std::collections::HashMap::new()),
+            hooks: Mutex::new(None),
+            secrets: Mutex::new(None),
+            secret_desk: hooks::secrets::Desk::default(),
         })
     }
 
@@ -821,6 +832,10 @@ impl Core {
         let naming = self.delegation_naming();
         let verdict = if crate::tiles::is_own_app_tool(naming, tool) {
             permissions::registry::Verdict::by_tool(permissions::Risk::Low, "outil MCP Apps d'ARIA")
+        } else if crate::mcp::hooks::is_unasked(naming, tool) {
+            // Reading the hooks, and asking for a secret through ARIA's own
+            // form, which is itself the user's answer (`mcp::hooks`).
+            permissions::registry::Verdict::by_tool(permissions::Risk::Low, "hooks d'ARIA")
         } else if crate::mcp::subagent::is_read_tool(naming, tool) {
             // Decision 106. Reading ARIA's memory is answered without asking,
             // and for the same two reasons the tile tool is: the registry

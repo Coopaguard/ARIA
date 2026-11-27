@@ -32,6 +32,13 @@ wins, and **no match means `ask`**. By default, paths outside the project are al
   kept for the directory as long as the process lives. No SSE.
 - A tool is named **`<server>_<tool>`**, unsupported characters becoming `_`: not the `mcp__server__tool` of Claude Code.
 
+## Asking the user, read on 2026-11-27
+
+`question`: questions with a short `header` and options, `multiple: true` for several, a free answer by default;
+rejecting one stops the session. An issue says an ACP client cannot offer the same thing. Third-party notes, not the
+official pages. Sources: [the tool's text](https://gitcode.com/openharmony-sig/deveco-code/blob/develop/packages/opencode/src/tool/question.txt),
+[issue 30343](https://github.com/anomalyco/opencode/issues/30343).
+
 ## Other
 
 - Models as `provider/model`; in ACP, `session/set_config_option` with `model`, `effort` or `mode`.

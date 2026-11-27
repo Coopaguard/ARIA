@@ -136,7 +136,7 @@ pub fn catalogue() -> Vec<ToolSpec> {
             // not invent the answer in the meantime.
             description: "Confie une tâche à une session qui travaille en arrière-plan : \
                  chercher une information, lire ou modifier des fichiers, lancer une \
-                 commande. Le résultat N'EST PAS dans la réponse de cet outil — il \
+                 commande, surveiller à intervalle régulier, même avec un mot de passe. Le résultat N'EST PAS dans la réponse de cet outil — il \
                  arrivera plus tard sous forme de message. N'annonce pas que tu vas \
                  chercher : c'est déjà dit. N'invente jamais le résultat. \
                  Si la réponse se montre mieux qu'elle ne se dit — un relevé, un \
@@ -369,6 +369,9 @@ mod tests {
             .find(|t| t.name == DELEGATE_TASK)
             .expect("the catalogue carries delegate_task");
         assert!(delegate.description.contains("plus tard"));
+        // 2026-11-27: asked for a check every thirty seconds, the post answered
+        // it could only launch a one-off task. A session writes a hook.
+        assert!(delegate.description.contains("surveiller à intervalle régulier"));
         assert!(delegate.description.contains("N'invente"));
     }
 
@@ -465,6 +468,14 @@ mod tests {
         // it schema, taking the catalogue from 2886 to 3017. The ceiling went
         // to 3150, so the margin is 133 bytes: about one more parameter, and
         // then something has to come out. That is the intended reading.
+        //
+        // 2026-11-27, within the budget (3117): « surveiller à intervalle
+        // régulier » in `delegate_task`, for a fault heard — asked for a check
+        // every thirty seconds, the post said it could only launch one-off
+        // tasks. A session writes it as a hook. Then « même avec un mot de
+        // passe » (3145): asked for a test with a secret, the post answered it
+        // could not store one, and proposed a made-up value instead of
+        // delegating. **Five bytes left: the next line has to take one out.**
         assert!(
             shipped < 3_150,
             "{shipped} octets partent à chaque tour de parole"

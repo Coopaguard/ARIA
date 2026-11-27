@@ -34,8 +34,10 @@ what is already known; delete both when the task is done.
 - [ ] [Security guards that do not exist yet](todos/security-guards.md)
 - [ ] [Approve by voice, and show what is approved](todos/voice-approval.md)
 - [ ] [Give a delegated task its project folder](todos/task-working-directory.md)
+- [ ] [A delegated session kept ready](todos/preloaded-session.md)
 - [ ] [The agent holds its own active / asleep state](todos/agent-held-state.md)
-- [ ] [Actions: let the outside wake ARIA](todos/actions.md)
+- [ ] [Hooks: wake ARIA on any event](todos/hooks.md)
+- [ ] [Actions: what ARIA does on the machine](todos/actions.md)
 - [ ] [Cadence: scheduled tasks and watch](todos/cadence.md)
 - [ ] [Connectors and skills](todos/connectors-and-skills.md)
 - [ ] [Other engines: opencode, Gemini, Vibe, Codex](todos/other-engines.md)
@@ -48,6 +50,7 @@ what is already known; delete both when the task is done.
 
 - [ ] [Embedded browser panel](todos/browser-panel.md)
 - [ ] [Tiles: what the specification leaves open](todos/tiles.md)
+- [ ] [Questions to the user, answered in a tile](todos/ask-user.md)
 - [ ] [Feature ideas](todos/feature-ideas.md)
 
 ## Maintenance

@@ -16,7 +16,7 @@ Wanted. Never built there: what follows was read in the code on 2026-11-24.
 - The installer (NSIS), the updater's target and both workflows.
 
 **To check there**: the global shortcut and the always-on-top transparent overview under Wayland, the tray icon,
-the microphone and echo through PipeWire, the PDF viewer of WebKitGTK in a tile, and the origins of the CSP
+the microphone and echo through PipeWire, a Secret Service for the secrets of [hooks](hooks.md), the PDF viewer of WebKitGTK in a tile, and the origins of the CSP
 (`http://ipc.localhost` is the Windows spelling).
 
 **Order**: `cargo check` on `ubuntu` in the CI, then the models on the CPU, then the window, then a package

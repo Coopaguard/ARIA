@@ -24,6 +24,13 @@ Sources: [repository](https://github.com/mistralai/mistral-vibe) (Apache-2.0, 3.
 - Per agent, in `~/.vibe/agents/<name>.toml`: `permission` and an `allowlist`. A chained command is denied unless every
   part is listed.
 
+## Asking the user, read on 2026-11-27
+
+`ask_user_question`: clarifying questions, multiple choice in the README's example. One to four questions and
+`hide_other` come from a third-party page only. How it reaches an ACP client was not found. Sources:
+[README](https://raw.githubusercontent.com/mistralai/mistral-vibe/main/README.md),
+[context7](https://context7.com/mistralai/mistral-vibe).
+
 ## Other
 
 - `--model <alias>`, `--thinking <level>`: new sessions only.

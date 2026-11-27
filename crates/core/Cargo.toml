@@ -76,6 +76,11 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 # in silence would be worse than the dependency.
 serde_norway = "0.9"
 
+# A hook's manifest, `hook.toml`, and the fingerprint of what the user
+# validated (`hooks`). Both already compiled for `app/`, at these versions.
+sha2 = "0.10"
+toml = "1"
+
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
